@@ -70,7 +70,7 @@ const storage = multer.diskStorage({
 })
 const upload = multer({ storage })
 
-const employee_pics = upload.fields([{ name: 'salarySlip',maxCount:1 }, { name: 'experienceLetter',maxCount:1 }, { name: 'profilePic',maxCount:1 }])
+const employee_pics = upload.fields([{ name: 'salarySlip', maxCount: 1 }, { name: 'experienceLetter', maxCount: 1 }, { name: 'profilePic', maxCount: 1 }])
 
 //2.2 query for inserting into the db
 app.post('/createemployee', employee_pics, (req, res) => {
@@ -78,7 +78,7 @@ app.post('/createemployee', employee_pics, (req, res) => {
     console.log(req.files.salarySlip[0].filename);
     // console.log(req.body)
   }
-  else{
+  else {
     console.log('no files detected')
   }
   const values = [
@@ -135,13 +135,109 @@ app.post('/createemployee', employee_pics, (req, res) => {
   });
 });
 
+// 3. add education details of employee
+
+//taking its documents from frontend post req. 
+//2.1 making file upload functionality for the degreeCertificate
+const employee_educationD = upload.fields([{ name: 'degreeCertificate', maxCount: 1 }])
+
+app.post('/addeducation', employee_educationD, (req, res) => {
+  if (req.files) {
+    console.log('file detected')
+  }
+  else {
+    console.log('no files detected')
+  }
+  const values = [
+    req.body.employeeId,
+    req.body.degreeName,
+    req.body.passingYear,
+    req.body.percentage,
+    req.files.degreeCertificate[0].filename,
+  ];
+  console.log(req.body)
+  console.log(req.files)
+  //query of employee db entry of 16 fields and two default
+  const query = `INSERT INTO employee_education ( 
+    employeeId,
+    degreeName,
+    passingYear,
+    percentage,
+    degreeCertificate
+    ) 
+    VALUES
+     (?, ?, ?, ?,?)`;
+
+  db.query(query, values, (err, result) => {
+    if (err) {
+      console.error('Error inserting data into employee_education:', err);
+      res.status(500).send({ message: "erro in inserting education docs", error: err });
+      return;
+    }
+    console.log('Data inserted into employee_education:', result);
+    res.status(200).send({ status: 200, message: 'Login successful' });
+  });
+});
+
+// 4. add legal documents of employee (aadhar and others)
+
+//taking its documents from frontend post req. 
+//2.1 making file upload functionality for the degreeCertificate
+const employee_legalD = upload.fields([
+  { name: 'passbook', maxCount: 1 },
+  { name: 'aadharcard', maxCount: 1 },
+  { name: 'pancard', maxCount: 1 },
+  { name: 'voterId', maxCount: 1 },
+  { name: 'drivingLiscence', maxCount: 1 }
+])
+
+app.post('/adddocumets', employee_legalD, (req, res) => {
+  if (req.files) {
+    console.log('file detected')
+  }
+  else {
+    console.log('no files detected')
+  }
+  const values = [
+    req.body.employeeId,
+    req.files.passbook[0].filename,
+    req.files.aadharcard[0].filename,
+    req.files.pancard[0].filename,
+    req.files.voterId[0].filename,
+    req.files.drivingLiscence[0].filename
+  ];
+  console.log(req.body)
+  console.log(req.files)
+  //query of employee db entry of 16 fields and two default
+  const query = `INSERT INTO employee_document ( 
+    employeeId,
+    passbook,
+    aadharcard,
+    pancard,
+    voterId,
+    drivingLiscence
+    ) 
+    VALUES
+     (?, ?, ?, ?,?,?)`;
+
+  db.query(query, values, (err, result) => {
+    if (err) {
+      console.error('Error inserting data into employee_document:', err);
+      res.status(500).send({ message: "erro in inserting education docs", error: err });
+      return;
+    }
+    console.log('Data inserted into employee_document:', result);
+    res.status(200).send({ status: 200, message: 'insertion sucess in employee_document' });
+  });
+});
+
 
 
 // 3. employee login 
 app.post('/employeelogin', (req, res) => {
   const { email, password } = req.body;
   const query = 'SELECT * FROM employee WHERE email = ? AND password = ?';
-  
+
   db.query(query, [email, password], (err, results) => {
     if (err) {
       console.error('Error executing MySQL query:', err);
