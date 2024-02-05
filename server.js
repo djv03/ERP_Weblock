@@ -264,6 +264,78 @@ app.get('/getusers', (req, res) => {
 
 })
 
+//---------------------------- projects apis starts from here-------------------------
+
+// 5. add projects api
+
+//taking its documents from frontend post req
+//        NOTE: here seperate folder is assigned for the storage for project docs  
+const project_docs_storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, './public/project_docs');
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + '_' + file.originalname);
+  }
+});
+const project_docs_upload = multer({ storage: project_docs_storage })
+
+app.post('/addproject', project_docs_upload.array('projectDocs'), (req, res) => {
+
+  if (!req.files) {
+    return res.status(400).send('No files were uploaded.');
+  }
+  const values = [
+    req.body.ProjectName,
+    req.body.projectDescription,
+    req.body.startDate,
+    req.body.endDate,
+    req.body.participants,
+    req.body.totalTasks,
+    req.body.completedTasks,
+    JSON.stringify(req.files.map(file => file.filename))
+  ];
+
+  // console.log("values is here--->", values)
+
+  const query = `INSERT INTO projects ( 
+    ProjectName,
+    projectDescription,
+    startDate,
+    endDate,
+    participants,
+    totalTasks,
+    completedTasks,
+    projectDocs
+    ) 
+    VALUES
+     (?,?,?,?,
+      ?,?,?,?)`;
+
+  db.query(query, values, (err, result) => {
+    if (err) {
+      console.error('Error inserting data into projects:', err);
+      res.status(500).send({ message: "erro in inserting education docs", error: err });
+      return;
+    }
+    console.log('Data inserted into projects:', result);
+    res.status(200).send({ status: 200, message: 'insertion sucess in employee_document' });
+  });
+});
+
+// 6. get all projects
+app.get('/getprojects', (req, res) => {
+  //sql query to reteive all the documents of table
+  const query="SELECT * FROM `projects` WHERE 1";
+  db.query(query, (err, results) => {
+    if (err) {
+      res.status(500).send('Error fetching in data from my sql: ', err);
+    } else {
+      res.status(200).json(results);
+    }
+  });
+
+})
 
 
 //listening app
