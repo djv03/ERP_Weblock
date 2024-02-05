@@ -93,7 +93,7 @@ app.post('/createemployee', employee_pics, (req, res) => {
     req.body.address,
     req.body.date_of_birth,
     req.body.date_of_joining,
-    req.body.designation,
+    req.body.designation, 
     req.files.salarySlip[0].filename,
     req.files.experienceLetter[0].filename,
     req.files.profilePic[0].filename,
@@ -254,11 +254,11 @@ app.post('/employeelogin', (req, res) => {
 
 // 4. get all employees
 app.get('/getusers', (req, res) => {
-  db.query('SELECT * FROM epmloyee', (err, results) => {
+  db.query('SELECT * FROM employee', (err, results) => {
     if (err) {
-      res.status(500).send('Error fetching in data from my sql: ', err);
+      res.status(500).json({ error: 'Internal server error' });
     } else {
-      res.status(200).json(results);
+      res.json(results);
     }
   });
 
@@ -405,6 +405,86 @@ app.get('/getprojects', (req, res) => {
       res.status(500).send('Error fetching in data from task table: ', err);
     } else {
       res.status(200).json(results);
+    }
+  });
+  
+})
+// 7. apply leave API
+
+//taking its documents from frontend post req
+//        NOTE: here seperate folder is assigned for the storage for leave docs  
+const leave_docs_storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, './public/leave_docs');
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + '_' + file.originalname);
+  }
+});
+const leave_docs_upload = multer({ storage: leave_docs_storage })
+
+app.post('/addleave', leave_docs_upload.single('leave_doc'), (req, res) => {
+  const values = [
+    req.body.empId,
+    "pending",
+    req.body.leaveType,
+    req.body.noOfDays,
+    req.body.startDate,
+    req.body.endDate,
+    req.body.reason,
+    req.file.filename
+  ];
+  
+  const query = `INSERT INTO leaves ( 
+    empId,
+    status,
+    leaveType,
+    noOfDays,
+    startDate,
+    endDate,
+    reason,
+    leave_doc
+    ) 
+    VALUES
+    (?,?,?,?,
+    ?,?,?,?)`;
+      
+      db.query(query, values, (err, result) => {
+        if (err) {
+      console.error('Error inserting data into tasks table:', err);
+      res.status(500).send({ message: "erro in inserting leave", error: err });
+      return;
+    }
+    console.log('Data inserted into tasks table:', result);
+    res.status(200).send({ status: 200, message: 'insertion success in leave table' });
+  });
+});
+
+// 8. update leave status
+app.post('/approveleave',(req,res)=>{
+  const { update,empId  } = req.body;
+  console.log(req.body)
+  const query= `UPDATE leaves SET status = ? WHERE empId = ?`
+
+  db.query(query,[update,empId],(err,results)=>{
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      res.status(500).json({ error: 'Internal Server Error' });
+      return;
+    }
+      res.status(200).json({ status: 200, message: 'updated leave status' });
+  })
+})
+
+// 6. get all leaves
+app.get('/getleaves', (req, res) => {
+  //sql query to reteive all the documents of table
+  const query="SELECT * FROM `leaves` WHERE 1";
+  db.query(query, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    } else {
+      res.json(results);
     }
   });
   
