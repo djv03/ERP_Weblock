@@ -93,7 +93,7 @@ app.post('/createemployee', employee_pics, (req, res) => {
     req.body.address,
     req.body.date_of_birth,
     req.body.date_of_joining,
-    req.body.designation, 
+    req.body.designation,
     req.files.salarySlip[0].filename,
     req.files.experienceLetter[0].filename,
     req.files.profilePic[0].filename,
@@ -281,7 +281,7 @@ const project_docs_storage = multer.diskStorage({
 const project_docs_upload = multer({ storage: project_docs_storage })
 
 app.post('/addproject', project_docs_upload.array('projectDocs'), (req, res) => {
-  
+
   if (!req.files) {
     return res.status(400).send('No files were uploaded.');
   }
@@ -295,9 +295,9 @@ app.post('/addproject', project_docs_upload.array('projectDocs'), (req, res) => 
     req.body.completedTasks,
     JSON.stringify(req.files.map(file => file.filename))
   ];
-  
+
   // console.log("values is here--->", values)
-  
+
   const query = `INSERT INTO projects ( 
     ProjectName,
     projectDescription,
@@ -311,9 +311,9 @@ app.post('/addproject', project_docs_upload.array('projectDocs'), (req, res) => 
     VALUES
     (?,?,?,?,
       ?,?,?,?)`;
-      
-      db.query(query, values, (err, result) => {
-        if (err) {
+
+  db.query(query, values, (err, result) => {
+    if (err) {
       console.error('Error inserting data into projects:', err);
       res.status(500).send({ message: "erro in inserting education docs", error: err });
       return;
@@ -326,7 +326,7 @@ app.post('/addproject', project_docs_upload.array('projectDocs'), (req, res) => 
 // 6. get all projects
 app.get('/getprojects', (req, res) => {
   //sql query to reteive all the documents of table
-  const query="SELECT * FROM `projects` WHERE 1";
+  const query = "SELECT * FROM `projects` WHERE 1";
   db.query(query, (err, results) => {
     if (err) {
       res.status(500).send('Error fetching in data from my sql: ', err);
@@ -334,7 +334,7 @@ app.get('/getprojects', (req, res) => {
       res.status(200).json(results);
     }
   });
-  
+
 })
 
 //---------------------------- Tasks apis starts from here-------------------------
@@ -354,7 +354,7 @@ const task_docs_storage = multer.diskStorage({
 const task_docs_upload = multer({ storage: task_docs_storage })
 
 app.post('/addtask', task_docs_upload.array('taskDocs'), (req, res) => {
-  
+
   if (!req.files) {
     return res.status(400).send('No files were uploaded.');
   }
@@ -368,9 +368,9 @@ app.post('/addtask', task_docs_upload.array('taskDocs'), (req, res) => {
     req.body.reportTo,
     JSON.stringify(req.files.map(file => file.filename))
   ];
-  
+
   // console.log("values is here--->", values)
-  
+
   const query = `INSERT INTO tasks ( 
     taskDescription,
     projectId,
@@ -384,9 +384,9 @@ app.post('/addtask', task_docs_upload.array('taskDocs'), (req, res) => {
     VALUES
     (?,?,?,?,
       ?,?,?,?)`;
-      
-      db.query(query, values, (err, result) => {
-        if (err) {
+
+  db.query(query, values, (err, result) => {
+    if (err) {
       console.error('Error inserting data into tasks table:', err);
       res.status(500).send({ message: "erro in inserting education docs", error: err });
       return;
@@ -399,7 +399,7 @@ app.post('/addtask', task_docs_upload.array('taskDocs'), (req, res) => {
 // 6. get all projects
 app.get('/getprojects', (req, res) => {
   //sql query to reteive all the documents of table
-  const query="SELECT * FROM `tasks` WHERE 1";
+  const query = "SELECT * FROM `tasks` WHERE 1";
   db.query(query, (err, results) => {
     if (err) {
       res.status(500).send('Error fetching in data from task table: ', err);
@@ -407,7 +407,7 @@ app.get('/getprojects', (req, res) => {
       res.status(200).json(results);
     }
   });
-  
+
 })
 // 7. apply leave API
 
@@ -434,7 +434,7 @@ app.post('/addleave', leave_docs_upload.single('leave_doc'), (req, res) => {
     req.body.reason,
     req.file.filename
   ];
-  
+
   const query = `INSERT INTO leaves ( 
     empId,
     status,
@@ -448,9 +448,9 @@ app.post('/addleave', leave_docs_upload.single('leave_doc'), (req, res) => {
     VALUES
     (?,?,?,?,
     ?,?,?,?)`;
-      
-      db.query(query, values, (err, result) => {
-        if (err) {
+
+  db.query(query, values, (err, result) => {
+    if (err) {
       console.error('Error inserting data into tasks table:', err);
       res.status(500).send({ message: "erro in inserting leave", error: err });
       return;
@@ -461,25 +461,25 @@ app.post('/addleave', leave_docs_upload.single('leave_doc'), (req, res) => {
 });
 
 // 8. update leave status
-app.post('/approveleave',(req,res)=>{
-  const { update,empId  } = req.body;
+app.post('/approveleave', (req, res) => {
+  const { update, empId } = req.body;
   console.log(req.body)
-  const query= `UPDATE leaves SET status = ? WHERE empId = ?`
+  const query = `UPDATE leaves SET status = ? WHERE empId = ?`
 
-  db.query(query,[update,empId],(err,results)=>{
+  db.query(query, [update, empId], (err, results) => {
     if (err) {
       console.error('Error executing MySQL query:', err);
       res.status(500).json({ error: 'Internal Server Error' });
       return;
     }
-      res.status(200).json({ status: 200, message: 'updated leave status' });
+    res.status(200).json({ status: 200, message: 'updated leave status' });
   })
 })
 
-// 6. get all leaves
+// 9. get all leaves
 app.get('/getleaves', (req, res) => {
   //sql query to reteive all the documents of table
-  const query="SELECT * FROM `leaves` WHERE 1";
+  const query = "SELECT * FROM `leaves` WHERE 1";
   db.query(query, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'Internal server error' });
@@ -487,9 +487,161 @@ app.get('/getleaves', (req, res) => {
       res.json(results);
     }
   });
-  
+
 })
 
+
+//---------------------  all Clock APIs starts here-----------------------------
+
+
+//10. -------->clock-in API
+app.post('/clockin', (req, res) => {
+
+  // Create a new Date object which will represent today's date
+  var today = new Date();
+
+  // Extract the year, month, and day components from the Date object
+  var year = today.getFullYear();
+  var month = today.getMonth() + 1; // Note: January is 0, so we add 1 to get the correct month
+  var day = today.getDate();
+
+  // Extract hours, minutes, and seconds from the Date object
+  var hours = today.getHours();
+  var minutes = today.getMinutes();
+  var seconds = today.getSeconds();
+
+  // Format the date as YYYY-MM-DD and time as HH:MM:SS
+  var formattedDate = year + '-' + (month < 10 ? '0' + month : month) + '-' + (day < 10 ? '0' + day : day);
+  var formattedTime = (hours < 10 ? '0' + hours : hours) + ':' + (minutes < 10 ? '0' + minutes : minutes) + ':' + (seconds < 10 ? '0' + seconds : seconds);
+  console.log("here--------->", req.body);
+  const values = [
+    req.body.employeeId,
+    formattedDate,
+    formattedTime,
+  ];
+  const query = `INSERT INTO attendence
+  (
+    employeeId,
+    Date,
+    clockIn
+  ) VALUES
+  (
+    ?,?,?
+  )`
+
+  db.query(query, values, (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      res.status(500).json({ error: 'Internal Server Error' });
+      return;
+    }
+    res.status(200).json({ status: 200, message: 'employee clocked in' });
+  })
+})
+
+//11. -------->clock-out API
+
+app.post('/clockout', (req, res) => {
+  if (req.body.employeeId == null) {
+    res.status(200).json({ status: 200, message: 'employee has not clocked in ' })
+  }
+  // Create a new Date object which will represent today's date
+  var today = new Date();
+  // Extract hours, minutes, and seconds from the Date object
+  var hours = today.getHours();
+  var minutes = today.getMinutes();
+  var seconds = today.getSeconds();
+
+  var formattedTime = (hours < 10 ? '0' + hours : hours) + ':' + (minutes < 10 ? '0' + minutes : minutes) + ':' + (seconds < 10 ? '0' + seconds : seconds);
+
+  const query = `UPDATE attendence 
+                 SET clockOut = '${formattedTime}' 
+                 WHERE employeeId = '${req.body.employeeId}'`;
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      res.status(500).json({ error: 'Internal Server Error' });
+      return;
+    }
+    res.status(200).json({ status: 200, message: 'employee clocked-out' });
+  })
+})
+
+
+//12. -------->break start API
+app.post('/breakstart', (req, res) => {
+
+  // Create a new Date object which will represent today's date
+  var today = new Date();
+
+  // Extract the year, month, and day components from the Date object
+  var year = today.getFullYear();
+  var month = today.getMonth() + 1; // Note: January is 0, so we add 1 to get the correct month
+  var day = today.getDate();
+
+  // Extract hours, minutes, and seconds from the Date object
+  var hours = today.getHours();
+  var minutes = today.getMinutes();
+  var seconds = today.getSeconds();
+
+  // Format the date as YYYY-MM-DD and time as HH:MM:SS
+  var formattedDate = year + '-' + (month < 10 ? '0' + month : month) + '-' + (day < 10 ? '0' + day : day);
+  var formattedTime = (hours < 10 ? '0' + hours : hours) + ':' + (minutes < 10 ? '0' + minutes : minutes) + ':' + (seconds < 10 ? '0' + seconds : seconds);
+  console.log("here--------->", req.body);
+  const values = [
+    req.body.employeeId,
+    formattedDate,
+    formattedTime,
+  ];
+  const query = `INSERT INTO breaks
+  (
+    employeeId,
+    Date,
+    breakStart
+  ) VALUES
+  (
+    ?,?,?
+  )`
+
+  db.query(query, values, (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      res.status(500).json({ error: 'Internal Server Error' });
+      return;
+    }
+    res.status(200).json({ status: 200, message: 'break starts' });
+  })
+})
+
+//11. -------->ending the break API
+
+app.post('/breakend', (req, res) => {
+  if (req.body.employeeId == null) {
+    res.status(200).json({ status: 200, message: 'employee has not clocked in ' })
+  }
+  // Create a new Date object which will represent today's date
+  var today = new Date();
+  // Extract hours, minutes, and seconds from the Date object
+  var hours = today.getHours();
+  var minutes = today.getMinutes();
+  var seconds = today.getSeconds();
+
+  var formattedTime = (hours < 10 ? '0' + hours : hours) + ':' + (minutes < 10 ? '0' + minutes : minutes) + ':' + (seconds < 10 ? '0' + seconds : seconds);
+
+  const query = `UPDATE breaks 
+                 SET breakEnd = '${formattedTime}' 
+                 WHERE 
+                 employeeId = '${req.body.employeeId}'
+                 AND breakEnd = '00:00:00'`;
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      res.status(500).json({ error: 'Internal Server Error' });
+      return;
+    }
+    res.status(200).json({ status: 200, message: 'breaks ends' });
+  })
+})
 
 //listening app
 app.listen(port, () => {
