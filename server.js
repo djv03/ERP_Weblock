@@ -50,7 +50,7 @@ app.post('/adminlogin', (req, res) => {
     if (results && results.length > 0) {
       res.status(200).json({ status: 200, message: 'Login successful' });
     } else {
-      res.status(401).json({ error: 'Unauthorized' });
+      res.status(401).json({ error: 'Unauthorized admin access' });
     }
   });
 });
@@ -74,12 +74,8 @@ const employee_pics = upload.fields([{ name: 'salarySlip', maxCount: 1 }, { name
 
 //2.2 query for inserting into the db
 app.post('/createemployee', employee_pics, (req, res) => {
-  if (req.files) {
-    console.log(req.files.salarySlip[0].filename);
-    // console.log(req.body)
-  }
-  else {
-    console.log('no files detected')
+  if (!req.files) {
+    res.status(200).send({ status: 200, message: 'please provide employee documets' });
   }
   const values = [
     req.body.name,
@@ -127,11 +123,10 @@ app.post('/createemployee', employee_pics, (req, res) => {
   db.query(query, values, (err, result) => {
     if (err) {
       console.error('Error inserting data into MySQL:', err);
-      res.status(500).send('Error inserting data into MySQL');
+      res.status(500).send('Error in creating employee');
       return;
     }
-    console.log('Data inserted into employee:', result);
-    res.status(200).send({ status: 200, message: 'Login successful' });
+    res.status(200).send({ status: 200, message: 'employee created successfully' });
   });
 });
 
@@ -142,11 +137,8 @@ app.post('/createemployee', employee_pics, (req, res) => {
 const employee_educationD = upload.fields([{ name: 'degreeCertificate', maxCount: 1 }])
 
 app.post('/addeducation', employee_educationD, (req, res) => {
-  if (req.files) {
-    console.log('file detected')
-  }
-  else {
-    console.log('no files detected')
+  if (!req.files) {
+    res.status(500).send({status:200, message: "no degree certificate detected" });
   }
   const values = [
     req.body.employeeId,
@@ -155,8 +147,6 @@ app.post('/addeducation', employee_educationD, (req, res) => {
     req.body.percentage,
     req.files.degreeCertificate[0].filename,
   ];
-  console.log(req.body)
-  console.log(req.files)
   //query of employee db entry of 16 fields and two default
   const query = `INSERT INTO employee_education ( 
     employeeId,
@@ -170,12 +160,11 @@ app.post('/addeducation', employee_educationD, (req, res) => {
 
   db.query(query, values, (err, result) => {
     if (err) {
-      console.error('Error inserting data into employee_education:', err);
       res.status(500).send({ message: "erro in inserting education docs", error: err });
       return;
     }
     console.log('Data inserted into employee_education:', result);
-    res.status(200).send({ status: 200, message: 'Login successful' });
+    res.status(200).send({ status: 200, message: 'Data inserted into employee_education' });
   });
 });
 
@@ -192,11 +181,8 @@ const employee_legalD = upload.fields([
 ])
 
 app.post('/adddocumets', employee_legalD, (req, res) => {
-  if (req.files) {
-    console.log('file detected')
-  }
-  else {
-    console.log('no files detected')
+  if (!req.files) {
+    res.status(500).send({status:200, message: "employee documnets not detected " });
   }
   const values = [
     req.body.employeeId,
@@ -206,8 +192,7 @@ app.post('/adddocumets', employee_legalD, (req, res) => {
     req.files.voterId[0].filename,
     req.files.drivingLiscence[0].filename
   ];
-  console.log(req.body)
-  console.log(req.files)
+
   //query of employee db entry of 16 fields and two default
   const query = `INSERT INTO employee_document ( 
     employeeId,
@@ -226,7 +211,6 @@ app.post('/adddocumets', employee_legalD, (req, res) => {
       res.status(500).send({ message: "erro in inserting education docs", error: err });
       return;
     }
-    console.log('Data inserted into employee_document:', result);
     res.status(200).send({ status: 200, message: 'insertion sucess in employee_document' });
   });
 });
@@ -245,9 +229,9 @@ app.post('/employeelogin', (req, res) => {
       return;
     }
     if (results && results.length > 0) {
-      res.status(200).json({ status: 200, message: 'Login successful' });
+      res.status(200).json({ status: 200, message: 'employee Login successful' });
     } else {
-      res.status(401).json({ error: 'Unauthorized' });
+      res.status(401).json({ error: ' Unauthorized employee access' });
     }
   });
 });
@@ -296,8 +280,6 @@ app.post('/addproject', project_docs_upload.array('projectDocs'), (req, res) => 
     JSON.stringify(req.files.map(file => file.filename))
   ];
 
-  // console.log("values is here--->", values)
-
   const query = `INSERT INTO projects ( 
     ProjectName,
     projectDescription,
@@ -315,11 +297,10 @@ app.post('/addproject', project_docs_upload.array('projectDocs'), (req, res) => 
   db.query(query, values, (err, result) => {
     if (err) {
       console.error('Error inserting data into projects:', err);
-      res.status(500).send({ message: "erro in inserting education docs", error: err });
+      res.status(500).send({ message: "erro in inserting projects.projectDocs", error: err });
       return;
     }
-    console.log('Data inserted into projects:', result);
-    res.status(200).send({ status: 200, message: 'insertion sucess in employee_document' });
+    res.status(200).send({ status: 200, message: 'insertion sucess in employee_document', documnet: req.body });
   });
 });
 
@@ -355,9 +336,6 @@ const task_docs_upload = multer({ storage: task_docs_storage })
 
 app.post('/addtask', task_docs_upload.array('taskDocs'), (req, res) => {
 
-  if (!req.files) {
-    return res.status(400).send('No files were uploaded.');
-  }
   const values = [
     req.body.taskDescription,
     req.body.projectId,
@@ -368,8 +346,6 @@ app.post('/addtask', task_docs_upload.array('taskDocs'), (req, res) => {
     req.body.reportTo,
     JSON.stringify(req.files.map(file => file.filename))
   ];
-
-  // console.log("values is here--->", values)
 
   const query = `INSERT INTO tasks ( 
     taskDescription,
@@ -388,11 +364,11 @@ app.post('/addtask', task_docs_upload.array('taskDocs'), (req, res) => {
   db.query(query, values, (err, result) => {
     if (err) {
       console.error('Error inserting data into tasks table:', err);
-      res.status(500).send({ message: "erro in inserting education docs", error: err });
+      res.status(500).send({ message: "erro in inserting tasks.taskDocs", error: err });
       return;
     }
     console.log('Data inserted into tasks table:', result);
-    res.status(200).send({ status: 200, message: 'insertion sucess in tasks table' });
+    res.status(200).send({ status: 200, message: 'task Docs inserted sucessfully',document:req.body });
   });
 });
 
@@ -409,6 +385,8 @@ app.get('/getprojects', (req, res) => {
   });
 
 })
+
+//---------------------> leaves apis starts here <----------------------
 // 7. apply leave API
 
 //taking its documents from frontend post req
@@ -451,28 +429,27 @@ app.post('/addleave', leave_docs_upload.single('leave_doc'), (req, res) => {
 
   db.query(query, values, (err, result) => {
     if (err) {
-      console.error('Error inserting data into tasks table:', err);
+      console.error('Error inserting data into leaves:', err);
       res.status(500).send({ message: "erro in inserting leave", error: err });
       return;
     }
     console.log('Data inserted into tasks table:', result);
-    res.status(200).send({ status: 200, message: 'insertion success in leave table' });
+    res.status(200).send({ status: 200, message: 'insertion success in leave table',document:req.body });
   });
 });
 
 // 8. update leave status
 app.post('/approveleave', (req, res) => {
   const { update, empId } = req.body;
-  console.log(req.body)
   const query = `UPDATE leaves SET status = ? WHERE empId = ?`
 
   db.query(query, [update, empId], (err, results) => {
     if (err) {
       console.error('Error executing MySQL query:', err);
-      res.status(500).json({ error: 'Internal Server Error' });
+      res.status(500).json({ error: 'error updating leave status' });
       return;
     }
-    res.status(200).json({ status: 200, message: 'updated leave status' });
+    res.status(200).json({ status: 200, message: 'leave status updated',status: req.body.update });
   })
 })
 
@@ -482,7 +459,7 @@ app.get('/getleaves', (req, res) => {
   const query = "SELECT * FROM `leaves` WHERE 1";
   db.query(query, (err, results) => {
     if (err) {
-      res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: 'can not retrieve leaves' });
     } else {
       res.json(results);
     }
@@ -532,7 +509,7 @@ app.post('/clockin', (req, res) => {
   db.query(query, values, (err, results) => {
     if (err) {
       console.error('Error executing MySQL query:', err);
-      res.status(500).json({ error: 'Internal Server Error' });
+      res.status(500).json({ error: 'clock in error' });
       return;
     }
     res.status(200).json({ status: 200, message: 'employee clocked in' });
@@ -560,7 +537,7 @@ app.post('/clockout', (req, res) => {
   db.query(query, (err, results) => {
     if (err) {
       console.error('Error executing MySQL query:', err);
-      res.status(500).json({ error: 'Internal Server Error' });
+      res.status(500).json({ error: 'clock-out in error' });
       return;
     }
     res.status(200).json({ status: 200, message: 'employee clocked-out' });
@@ -606,7 +583,7 @@ app.post('/breakstart', (req, res) => {
   db.query(query, values, (err, results) => {
     if (err) {
       console.error('Error executing MySQL query:', err);
-      res.status(500).json({ error: 'Internal Server Error' });
+      res.status(500).json({ error: 'break starts error' });
       return;
     }
     res.status(200).json({ status: 200, message: 'break starts' });
@@ -617,7 +594,7 @@ app.post('/breakstart', (req, res) => {
 
 app.post('/breakend', (req, res) => {
   if (req.body.employeeId == null) {
-    res.status(200).json({ status: 200, message: 'employee has not clocked in ' })
+    res.status(200).json({ status: 200, message: 'employee has not started break ' })
   }
   // Create a new Date object which will represent today's date
   var today = new Date();
@@ -636,7 +613,7 @@ app.post('/breakend', (req, res) => {
   db.query(query, (err, results) => {
     if (err) {
       console.error('Error executing MySQL query:', err);
-      res.status(500).json({ error: 'Internal Server Error' });
+      res.status(500).json({ error: 'break ends error' });
       return;
     }
     res.status(200).json({ status: 200, message: 'breaks ends' });
