@@ -138,7 +138,7 @@ const employee_educationD = upload.fields([{ name: 'degreeCertificate', maxCount
 
 app.post('/addeducation', employee_educationD, (req, res) => {
   if (!req.files) {
-    res.status(500).send({status:200, message: "no degree certificate detected" });
+    res.status(500).send({ status: 200, message: "no degree certificate detected" });
   }
   const values = [
     req.body.employeeId,
@@ -182,7 +182,7 @@ const employee_legalD = upload.fields([
 
 app.post('/adddocumets', employee_legalD, (req, res) => {
   if (!req.files) {
-    res.status(500).send({status:200, message: "employee documnets not detected " });
+    res.status(500).send({ status: 200, message: "employee documnets not detected " });
   }
   const values = [
     req.body.employeeId,
@@ -368,7 +368,7 @@ app.post('/addtask', task_docs_upload.array('taskDocs'), (req, res) => {
       return;
     }
     console.log('Data inserted into tasks table:', result);
-    res.status(200).send({ status: 200, message: 'task Docs inserted sucessfully',document:req.body });
+    res.status(200).send({ status: 200, message: 'task Docs inserted sucessfully', document: req.body });
   });
 });
 
@@ -434,7 +434,7 @@ app.post('/addleave', leave_docs_upload.single('leave_doc'), (req, res) => {
       return;
     }
     console.log('Data inserted into tasks table:', result);
-    res.status(200).send({ status: 200, message: 'insertion success in leave table',document:req.body });
+    res.status(200).send({ status: 200, message: 'insertion success in leave table', document: req.body });
   });
 });
 
@@ -449,7 +449,7 @@ app.post('/approveleave', (req, res) => {
       res.status(500).json({ error: 'error updating leave status' });
       return;
     }
-    res.status(200).json({ status: 200, message: 'leave status updated',status: req.body.update });
+    res.status(200).json({ status: 200, message: 'leave status updated', status: req.body.update });
   })
 })
 
@@ -618,6 +618,161 @@ app.post('/breakend', (req, res) => {
     }
     res.status(200).json({ status: 200, message: 'breaks ends' });
   })
+})
+
+// --------------> requests generation api <------------------
+
+// 12. create general request API
+// here is the API with regards to general structure of any request (late clockin, employee profile update or any future request type )
+
+//  creating storage space for leave request 
+const requests_docs_storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, './public/requests_docs');
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + '_' + file.originalname);
+  }
+});
+const requests_docs_upload = multer({ storage: requests_docs_storage })
+
+app.post('/createrequest', requests_docs_upload.single('value'), (req, res) => {
+
+  const values = [
+    req.body.employeeId,
+    req.body.type,//can be clocktime,update_employee
+    req.body.description,
+    req.body.keyname,
+    !req.file ? req.body.value : req.file.filename,
+    "pending",
+  ];
+  const query = `INSERT INTO requests ( 
+    employeeId,
+    type,
+    description,
+    keyname,
+    value,
+    status
+    ) 
+    VALUES
+    (?,?,?,?,
+    ?,?)`;
+
+  db.query(query, values, (err, result) => {
+    if (err) {
+      console.error('Error inserting data into leaves:', err);
+      res.status(500).send({ message: "erro in inserting request", error: err });
+      return;
+    }
+    console.log('Data inserted into tasks table:', result);
+    res.status(200).send({ status: 200, message: 'request created successfully', document: req.body });
+  });
+});
+
+// 13. update request status
+app.post('/updaterequest', (req, res) => {
+  console.log("updaterequest body", req.body)
+  //getting data first to get keyname and value for updation in destination folder
+  const getemployee_query = `SELECT  employeeId,keyname, value FROM requests WHERE requestId=${req.body.requestId};`
+
+  db.query(getemployee_query, (err, result) => {
+    if (err && result.length == 0) {
+      console.error('Error inserting data into leaves:', err);
+      res.status(500).send({ message: "can not find request for given data", error: err });
+      return;
+    }
+    console.log(result)
+    if (req.body.type == "clocktime") {
+      const query = `UPDATE requests SET status = "${req.body.update}" WHERE requestId = ${req.body.requestId}`
+      const sub_query = `UPDATE attendence SET clockIn = "${result[0].value}" WHERE 	employeeId = ${result[0].employeeId}`
+
+      Promise.all([
+        executeQuery(query),
+        executeQuery(sub_query)
+      ])
+        .then(results => {
+          // Combine the results into a single object
+          const combinedData = {
+            request_updation: results[0],
+            data_updation: results[1]
+          };
+
+          // Send the combined data as a response
+          res.json({ status: 200, message: 'request updated successfully', data: combinedData });
+        })
+        .catch(error => {
+          console.error('Error in updating request: ' + error);
+          res.status(500).json({ error: 'Internal server error', message: error });
+        });
+    }
+    else if (req.body.type == "update_employee") {
+      const query = `UPDATE requests SET status = "${req.body.update}" WHERE requestId = ${req.body.requestId}`
+      const sub_query = `UPDATE employee SET ${result[0].keyname} = "${result[0].value}" WHERE employeeId  = ${result[0].employeeId}`
+
+      Promise.all([
+        executeQuery(query),
+        executeQuery(sub_query)
+      ])
+        .then(results => {
+          // Combine the results into a single object
+          const combinedData = {
+            request_updation: results[0],
+            data_updation: results[1]
+          };
+
+          // Send the combined data as a response
+          res.json({ status: 200, message: 'request updated successfully', data: combinedData });
+        })
+        .catch(error => {
+          console.error('Error in updating request: ' + error);
+          res.status(500).json({ error: 'Internal server error', message: error });
+        });
+    }
+
+    function executeQuery(query) {
+      return new Promise((resolve, reject) => {
+        db.query(query, (error, results) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve(results);
+          }
+        });
+      });
+    }
+  });
+})
+
+app.get('/getrequestdata', (req, res) => {
+
+  console.log(req.body)
+  const getemployee_query = `SELECT  keyname, value FROM requests WHERE employeeId=${req.body.employeeId} AND status="pending";`
+  db.query(getemployee_query, async (err, result) => {
+    if (err) {
+      console.error('Error inserting data into leaves:', err);
+      res.status(500).send({ message: "erro in inserting request", error: err });
+
+      return;
+    }
+    // console.log('Data inserted into tasks table:', result);
+    console.log(result[0].keyname)
+    console.log(result[0].value)
+    res.status(200).send({ status: 200, message: 'got data successfully', data: result });
+  });
+})
+
+// 9. get all leaves
+app.get('/getleaves', (req, res) => {
+  //sql query to reteive all the documents of table
+  const query = "SELECT * FROM `leaves` WHERE 1";
+  db.query(query, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'can not retrieve leaves' });
+    } else {
+      res.json(results);
+    }
+  });
+
 })
 
 //listening app
