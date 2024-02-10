@@ -33,11 +33,14 @@ app.get('/', (req, res) => {
   res.sendFile(__dirname + '/index.html');
 });
 
-
+const checkRequiredFields = require('./middleware/validator.js')
 //------------------------ your API goes here--------------------------
 
 // 1. admin login 
-app.post('/adminlogin', (req, res) => {
+app.post('/adminlogin', checkRequiredFields([
+  "email",
+  "password"
+]), (req, res) => {
   const { email, password } = req.body;
   const query = 'SELECT * FROM admin WHERE email = ? AND password = ?';
 
@@ -48,7 +51,7 @@ app.post('/adminlogin', (req, res) => {
       return;
     }
     if (results && results.length > 0) {
-      res.status(200).json({ status: 200, message: 'Login successful' });
+      res.status(200).json({ status: 200, message: 'Login successful', data: results[0]?.id });
     } else {
       res.status(401).json({ error: 'Unauthorized admin access' });
     }
@@ -73,9 +76,25 @@ const upload = multer({ storage })
 const employee_pics = upload.fields([{ name: 'salarySlip', maxCount: 1 }, { name: 'experienceLetter', maxCount: 1 }, { name: 'profilePic', maxCount: 1 }])
 
 //2.2 query for inserting into the db
-app.post('/createemployee', employee_pics, (req, res) => {
-  if (!req.files) {
-    res.status(200).send({ status: 200, message: 'please provide employee documets' });
+app.post('/createemployee', employee_pics, checkRequiredFields([
+  "name",
+  "email",
+  "companyEmail",
+  "password",
+  "gender",
+  "marital_status",
+  "mobileNumber",
+  "altmobileNumber",
+  "address",
+  "date_of_birth",
+  "date_of_joining",
+  "designation",
+  "ExperienceType",
+  "salary",
+]), (req, res) => {
+  console.log(req.files)
+  if (!req.files.profilePic) {
+    res.status(400).send({ status: 200, message: 'provide profile pic' });
   }
   const values = [
     req.body.name,
@@ -90,8 +109,9 @@ app.post('/createemployee', employee_pics, (req, res) => {
     req.body.date_of_birth,
     req.body.date_of_joining,
     req.body.designation,
-    req.files.salarySlip[0].filename,
-    req.files.experienceLetter[0].filename,
+    req.body.ExperienceType,
+    !req.files.salarySlip ? "" : req.files.salarySlip[0].filename,
+    !req.files.experienceLetter ? "" : req.files.experienceLetter[0].filename,
     req.files.profilePic[0].filename,
     req.body.salary
   ];
@@ -110,6 +130,7 @@ app.post('/createemployee', employee_pics, (req, res) => {
     date_of_birth,
     date_of_joining,
     designation,
+    ExperienceType,
     salarySlip,
     experienceLetter,
     profilePic,
@@ -118,7 +139,8 @@ app.post('/createemployee', employee_pics, (req, res) => {
      (?, ?, ?, ?,
       ?, ?, ?, ?,
       ?, ?, ?, ?,
-      ?, ?, ?, ? )`;
+      ?, ?, ?, ?,
+      ? )`;
 
   db.query(query, values, (err, result) => {
     if (err) {
@@ -136,9 +158,14 @@ app.post('/createemployee', employee_pics, (req, res) => {
 //2.1 making file upload functionality for the degreeCertificate
 const employee_educationD = upload.fields([{ name: 'degreeCertificate', maxCount: 1 }])
 
-app.post('/addeducation', employee_educationD, (req, res) => {
-  if (!req.files) {
-    res.status(500).send({ status: 200, message: "no degree certificate detected" });
+app.post('/addeducation', employee_educationD, checkRequiredFields([
+  "employeeId",
+  "degreeName",
+  "passingYear",
+  "percentage",
+]), (req, res) => {
+  if (!req.files.degreeCertificate) {
+    res.status(400).send({ status: 400, message: "please provide degree certificate" });
   }
   const values = [
     req.body.employeeId,
@@ -171,7 +198,7 @@ app.post('/addeducation', employee_educationD, (req, res) => {
 // 4. add legal documents of employee (aadhar and others)
 
 //taking its documents from frontend post req. 
-//2.1 making file upload functionality for the degreeCertificate
+//2.1 making file upload functionality for the employee documents
 const employee_legalD = upload.fields([
   { name: 'passbook', maxCount: 1 },
   { name: 'aadharcard', maxCount: 1 },
@@ -180,17 +207,26 @@ const employee_legalD = upload.fields([
   { name: 'drivingLiscence', maxCount: 1 }
 ])
 
-app.post('/adddocumets', employee_legalD, (req, res) => {
-  if (!req.files) {
-    res.status(500).send({ status: 200, message: "employee documnets not detected " });
+app.post('/adddocumets', employee_legalD, checkRequiredFields([
+  "employeeId",
+]), (req, res) => {
+  if (!req.files.passbook) {
+    res.status(400).send({ status: 400, message: 'provide  passbook' });
   }
+  else if (!req.files.aadharcard) {
+    res.status(400).send({ status: 400, message: 'provide  aadharcard' });
+  }
+  else if (!req.files.pancard) {
+    res.status(400).send({ status: 400, message: 'provide  pancard' });
+  }
+
   const values = [
     req.body.employeeId,
     req.files.passbook[0].filename,
     req.files.aadharcard[0].filename,
     req.files.pancard[0].filename,
-    req.files.voterId[0].filename,
-    req.files.drivingLiscence[0].filename
+    !req.files.voterId ? "" : req.files.voterId[0].filename,
+    !req.files.drivingLiscence ? "" : req.files.drivingLiscence[0].filename,
   ];
 
   //query of employee db entry of 16 fields and two default
@@ -218,7 +254,10 @@ app.post('/adddocumets', employee_legalD, (req, res) => {
 
 
 // 3. employee login 
-app.post('/employeelogin', (req, res) => {
+app.post('/employeelogin', checkRequiredFields([
+  "email",
+  "password"
+]), (req, res) => {
   const { email, password } = req.body;
   const query = 'SELECT * FROM employee WHERE email = ? AND password = ?';
 
@@ -229,7 +268,7 @@ app.post('/employeelogin', (req, res) => {
       return;
     }
     if (results && results.length > 0) {
-      res.status(200).json({ status: 200, message: 'employee Login successful' });
+      res.status(200).json({ status: 200, message: 'employee Login successful', employeeId: results[0].employeeId, name: results[0].name });
     } else {
       res.status(401).json({ error: ' Unauthorized employee access' });
     }
@@ -242,7 +281,22 @@ app.get('/getusers', (req, res) => {
     if (err) {
       res.status(500).json({ error: 'Internal server error' });
     } else {
-      res.json(results);
+      res.json({ status: 200, message: "got employees successfully", data: results });
+    }
+  });
+
+})
+//get employee by id
+app.get('/getemployeebyid/:id', (req, res) => {
+  console.log(req.params.id)
+  if (req.params.id === null) {
+    res.status(400).json({ message: "employee id is required" });
+  }
+  db.query(`SELECT * FROM employee WHERE 	employeeId =${req.params.id}`, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'Internal server error', message: err });
+    } else {
+      res.json({ status: 200, message: "got employee successfully", data: results });
     }
   });
 
@@ -264,11 +318,15 @@ const project_docs_storage = multer.diskStorage({
 });
 const project_docs_upload = multer({ storage: project_docs_storage })
 
-app.post('/addproject', project_docs_upload.array('projectDocs'), (req, res) => {
+app.post('/addproject', project_docs_upload.array('projectDocs'), checkRequiredFields([
+  "ProjectName",
+  "projectDescription",
+  "startDate",
+  "endDate",
+  "participants",
+  "totalTasks"
+]), (req, res) => {
 
-  if (!req.files) {
-    return res.status(400).send('No files were uploaded.');
-  }
   const values = [
     req.body.ProjectName,
     req.body.projectDescription,
@@ -276,8 +334,8 @@ app.post('/addproject', project_docs_upload.array('projectDocs'), (req, res) => 
     req.body.endDate,
     req.body.participants,
     req.body.totalTasks,
-    req.body.completedTasks,
-    JSON.stringify(req.files.map(file => file.filename))
+    0,
+    !req.files ? "" : JSON.stringify(req.files.map(file => file.filename))
   ];
 
   const query = `INSERT INTO projects ( 
@@ -300,7 +358,7 @@ app.post('/addproject', project_docs_upload.array('projectDocs'), (req, res) => 
       res.status(500).send({ message: "erro in inserting projects.projectDocs", error: err });
       return;
     }
-    res.status(200).send({ status: 200, message: 'insertion sucess in employee_document', documnet: req.body });
+    res.status(200).send({ status: 200, message: 'insertion sucess in employee_document' });
   });
 });
 
@@ -312,7 +370,7 @@ app.get('/getprojects', (req, res) => {
     if (err) {
       res.status(500).send('Error fetching in data from my sql: ', err);
     } else {
-      res.status(200).json(results);
+      res.json({ status: 200, message: "got employee successfully", data: results });
     }
   });
 
@@ -320,7 +378,7 @@ app.get('/getprojects', (req, res) => {
 
 //---------------------------- Tasks apis starts from here-------------------------
 
-// 5. add projects api
+// 5. add tasks api
 
 //taking its documents from frontend post req
 //        NOTE: here seperate folder is assigned for the storage for project docs  
@@ -334,7 +392,15 @@ const task_docs_storage = multer.diskStorage({
 });
 const task_docs_upload = multer({ storage: task_docs_storage })
 
-app.post('/addtask', task_docs_upload.array('taskDocs'), (req, res) => {
+app.post('/addtask', task_docs_upload.array('taskDocs'), checkRequiredFields([
+  "taskDescription",
+  "projectId",
+  "priority",
+  "startDate",
+  "endDate",
+  "assignedTo",
+  "reportTo"
+]), (req, res) => {
 
   const values = [
     req.body.taskDescription,
@@ -344,7 +410,7 @@ app.post('/addtask', task_docs_upload.array('taskDocs'), (req, res) => {
     req.body.endDate,
     req.body.assignedTo,
     req.body.reportTo,
-    JSON.stringify(req.files.map(file => file.filename))
+    !req.files ? "" : JSON.stringify(req.files.map(file => file.filename))
   ];
 
   const query = `INSERT INTO tasks ( 
@@ -368,19 +434,19 @@ app.post('/addtask', task_docs_upload.array('taskDocs'), (req, res) => {
       return;
     }
     console.log('Data inserted into tasks table:', result);
-    res.status(200).send({ status: 200, message: 'task Docs inserted sucessfully', document: req.body });
+    res.status(200).send({ status: 200, message: 'task Docs inserted sucessfully' });
   });
 });
 
 // 6. get all projects
-app.get('/getprojects', (req, res) => {
+app.get('/gettasks', (req, res) => {
   //sql query to reteive all the documents of table
   const query = "SELECT * FROM `tasks` WHERE 1";
   db.query(query, (err, results) => {
     if (err) {
       res.status(500).send('Error fetching in data from task table: ', err);
     } else {
-      res.status(200).json(results);
+      res.json({ status: 200, message: "got tasks successfully", data: results });
     }
   });
 
@@ -401,21 +467,26 @@ const leave_docs_storage = multer.diskStorage({
 });
 const leave_docs_upload = multer({ storage: leave_docs_storage })
 
-app.post('/addleave', leave_docs_upload.single('leave_doc'), (req, res) => {
+app.post('/addleave', leave_docs_upload.single('leave_doc'), checkRequiredFields([
+  "empId",
+  "leaveType",
+  "noOfDays",
+  "startDate",
+  "endDate",
+  "reason"
+]), (req, res) => {
   const values = [
     req.body.empId,
-    "pending",
     req.body.leaveType,
     req.body.noOfDays,
     req.body.startDate,
     req.body.endDate,
     req.body.reason,
-    req.file.filename
+    !req.file ? "" : req.file.filename
   ];
 
   const query = `INSERT INTO leaves ( 
     empId,
-    status,
     leaveType,
     noOfDays,
     startDate,
@@ -425,7 +496,7 @@ app.post('/addleave', leave_docs_upload.single('leave_doc'), (req, res) => {
     ) 
     VALUES
     (?,?,?,?,
-    ?,?,?,?)`;
+    ?,?,?)`;
 
   db.query(query, values, (err, result) => {
     if (err) {
@@ -439,11 +510,14 @@ app.post('/addleave', leave_docs_upload.single('leave_doc'), (req, res) => {
 });
 
 // 8. update leave status
-app.post('/approveleave', (req, res) => {
-  const { update, empId } = req.body;
-  const query = `UPDATE leaves SET status = ? WHERE empId = ?`
+app.post('/approveleave', checkRequiredFields([
+  "update",
+  "leaveId"
+]), (req, res) => {
+  const { update, leaveId } = req.body;
+  const query = `UPDATE leaves SET status = ? WHERE leaveId = ?`
 
-  db.query(query, [update, empId], (err, results) => {
+  db.query(query, [update, leaveId], (err, results) => {
     if (err) {
       console.error('Error executing MySQL query:', err);
       res.status(500).json({ error: 'error updating leave status' });
@@ -461,7 +535,7 @@ app.get('/getleaves', (req, res) => {
     if (err) {
       res.status(500).json({ error: 'can not retrieve leaves' });
     } else {
-      res.json(results);
+      res.json({ status: 200, message: "got all leaves successfully", data: results });
     }
   });
 
@@ -473,7 +547,7 @@ app.get('/getleaves', (req, res) => {
 
 //10. -------->clock-in API
 app.post('/clockin', (req, res) => {
-
+  console.log('hereeeee', req.body)
   // Create a new Date object which will represent today's date
   var today = new Date();
 
@@ -490,7 +564,6 @@ app.post('/clockin', (req, res) => {
   // Format the date as YYYY-MM-DD and time as HH:MM:SS
   var formattedDate = year + '-' + (month < 10 ? '0' + month : month) + '-' + (day < 10 ? '0' + day : day);
   var formattedTime = (hours < 10 ? '0' + hours : hours) + ':' + (minutes < 10 ? '0' + minutes : minutes) + ':' + (seconds < 10 ? '0' + seconds : seconds);
-  console.log("here--------->", req.body);
   const values = [
     req.body.employeeId,
     formattedDate,
@@ -518,36 +591,39 @@ app.post('/clockin', (req, res) => {
 
 //11. -------->clock-out API
 
-app.post('/clockout', (req, res) => {
-  if (req.body.employeeId == null) {
-    res.status(200).json({ status: 200, message: 'employee has not clocked in ' })
-  }
-  // Create a new Date object which will represent today's date
-  var today = new Date();
-  // Extract hours, minutes, and seconds from the Date object
-  var hours = today.getHours();
-  var minutes = today.getMinutes();
-  var seconds = today.getSeconds();
+app.post('/clockout', checkRequiredFields(["employeeId"]), (req, res) => {
 
-  var formattedTime = (hours < 10 ? '0' + hours : hours) + ':' + (minutes < 10 ? '0' + minutes : minutes) + ':' + (seconds < 10 ? '0' + seconds : seconds);
+  db.query(`SELECT * from attendence WHERE employeeId=${req.body.employeeId} AND 	breakEnd="00:00:00"`, (err, results) => {
+    if (results.length == 0) {
+      res.status(400).json({ message: 'employee has not clocked in' });
+    }
+    // Create a new Date object which will represent today's date
+    var today = new Date();
+    // Extract hours, minutes, and seconds from the Date object
+    var hours = today.getHours();
+    var minutes = today.getMinutes();
+    var seconds = today.getSeconds();
 
-  const query = `UPDATE attendence 
+    var formattedTime = (hours < 10 ? '0' + hours : hours) + ':' + (minutes < 10 ? '0' + minutes : minutes) + ':' + (seconds < 10 ? '0' + seconds : seconds);
+
+    const query = `UPDATE attendence 
                  SET clockOut = '${formattedTime}' 
                  WHERE employeeId = '${req.body.employeeId}'`;
-  db.query(query, (err, results) => {
-    if (err) {
-      console.error('Error executing MySQL query:', err);
-      res.status(500).json({ error: 'clock-out in error' });
-      return;
-    }
-    res.status(200).json({ status: 200, message: 'employee clocked-out' });
+    db.query(query, (err, results) => {
+      if (err) {
+        console.error('Error executing MySQL query:', err);
+        res.status(500).json({ error: 'clock-out in error' });
+        return;
+      }
+      res.status(200).json({ status: 200, message: 'employee clocked-out' });
+    })
   })
+
 })
 
 
 //12. -------->break start API
-app.post('/breakstart', (req, res) => {
-
+app.post('/breakstart', checkRequiredFields(["employeeId"]), (req, res) => {
   // Create a new Date object which will represent today's date
   var today = new Date();
 
@@ -590,39 +666,44 @@ app.post('/breakstart', (req, res) => {
   })
 })
 
-//11. -------->ending the break API
+//13. -------->ending the break API
 
-app.post('/breakend', (req, res) => {
-  if (req.body.employeeId == null) {
-    res.status(200).json({ status: 200, message: 'employee has not started break ' })
-  }
-  // Create a new Date object which will represent today's date
-  var today = new Date();
-  // Extract hours, minutes, and seconds from the Date object
-  var hours = today.getHours();
-  var minutes = today.getMinutes();
-  var seconds = today.getSeconds();
+app.post('/breakend', checkRequiredFields(["employeeId"]), (req, res) => {
 
-  var formattedTime = (hours < 10 ? '0' + hours : hours) + ':' + (minutes < 10 ? '0' + minutes : minutes) + ':' + (seconds < 10 ? '0' + seconds : seconds);
+  db.query(`SELECT * from breaks WHERE employeeId=${req.body.employeeId} AND 	breakEnd="00:00:00"`, (err, results) => {
+    if (results.length == 0) {
+      res.status(400).json({ message: 'employee has not started break' });
+    }
+    // Create a new Date object which will represent today's date
+    var today = new Date();
+    // Extract hours, minutes, and seconds from the Date object
+    var hours = today.getHours();
+    var minutes = today.getMinutes();
+    var seconds = today.getSeconds();
 
-  const query = `UPDATE breaks 
+    var formattedTime = (hours < 10 ? '0' + hours : hours) + ':' + (minutes < 10 ? '0' + minutes : minutes) + ':' + (seconds < 10 ? '0' + seconds : seconds);
+
+    const query = `UPDATE breaks 
                  SET breakEnd = '${formattedTime}' 
                  WHERE 
                  employeeId = '${req.body.employeeId}'
                  AND breakEnd = '00:00:00'`;
-  db.query(query, (err, results) => {
-    if (err) {
-      console.error('Error executing MySQL query:', err);
-      res.status(500).json({ error: 'break ends error' });
-      return;
-    }
-    res.status(200).json({ status: 200, message: 'breaks ends' });
+    db.query(query, (err, results) => {
+      if (err) {
+        console.error('Error executing MySQL query:', err);
+        res.status(500).json({ error: 'break ends error' });
+        return;
+      }
+      res.status(200).json({ status: 200, message: 'breaks ends' });
+    })
   })
+
+
 })
 
 // --------------> requests generation api <------------------
 
-// 12. create general request API
+// 14. create general request API
 // here is the API with regards to general structure of any request (late clockin, employee profile update or any future request type )
 
 //  creating storage space for leave request 
@@ -636,27 +717,31 @@ const requests_docs_storage = multer.diskStorage({
 });
 const requests_docs_upload = multer({ storage: requests_docs_storage })
 
-app.post('/createrequest', requests_docs_upload.single('value'), (req, res) => {
+app.post('/createrequest', requests_docs_upload.single('value'),checkRequiredFields([
+  "employeeId",
+  "type",
+  "description",
+  "keyname"
+]), (req, res) => {
 
   const values = [
     req.body.employeeId,
     req.body.type,//can be clocktime,update_employee
     req.body.description,
     req.body.keyname,
-    !req.file ? req.body.value : req.file.filename,
-    "pending",
+    !req.file ? req.body.value : req.file.filename
   ];
+  console.log(req.file)
   const query = `INSERT INTO requests ( 
     employeeId,
     type,
     description,
     keyname,
-    value,
-    status
+    value
     ) 
     VALUES
     (?,?,?,?,
-    ?,?)`;
+    ?)`;
 
   db.query(query, values, (err, result) => {
     if (err) {
@@ -669,9 +754,12 @@ app.post('/createrequest', requests_docs_upload.single('value'), (req, res) => {
   });
 });
 
-// 13. update request status
-app.post('/updaterequest', (req, res) => {
-  console.log("updaterequest body", req.body)
+// 15. update request status
+app.post('/updaterequest', checkRequiredFields([
+  "requestId",
+  "update",
+  "type"
+]), (req, res) => {
   //getting data first to get keyname and value for updation in destination folder
   const getemployee_query = `SELECT  employeeId,keyname, value FROM requests WHERE requestId=${req.body.requestId};`
 
@@ -743,33 +831,73 @@ app.post('/updaterequest', (req, res) => {
   });
 })
 
-app.get('/getrequestdata', (req, res) => {
-
-  console.log(req.body)
-  const getemployee_query = `SELECT  keyname, value FROM requests WHERE employeeId=${req.body.employeeId} AND status="pending";`
-  db.query(getemployee_query, async (err, result) => {
-    if (err) {
-      console.error('Error inserting data into leaves:', err);
-      res.status(500).send({ message: "erro in inserting request", error: err });
-
-      return;
-    }
-    // console.log('Data inserted into tasks table:', result);
-    console.log(result[0].keyname)
-    console.log(result[0].value)
-    res.status(200).send({ status: 200, message: 'got data successfully', data: result });
-  });
-})
-
-// 9. get all leaves
-app.get('/getleaves', (req, res) => {
+// 16. get all request
+app.get('/getrequests', (req, res) => {
   //sql query to reteive all the documents of table
-  const query = "SELECT * FROM `leaves` WHERE 1";
+  const query = "SELECT * FROM `requests` WHERE 1";
   db.query(query, (err, results) => {
     if (err) {
-      res.status(500).json({ error: 'can not retrieve leaves' });
+      res.status(500).json({ status: 400, error: err });
     } else {
-      res.json(results);
+      res.json({status:200,message:"got the requests ",data: results});
+    }
+  });
+
+})
+
+// ---------------------> announcements APIs starts here <-------------------
+
+// 17. create announcements 
+const announcements_docs_storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, './public/announcements_docs');
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + '_' + file.originalname);
+  }
+});
+const announcements_docs_upload = multer({ storage: announcements_docs_storage })
+
+app.post('/addannouncements', announcements_docs_upload.array('announcements_docs'), checkRequiredFields([
+  "title",
+  "message",
+]), (req, res) => {
+  const values = [
+    !req.body.type?"general":req.body.type,
+    req.body.title,
+    req.body.message,
+    !req.files ? "" : JSON.stringify(req.files.map(file => file.filename))
+  ];
+
+  const query = `INSERT INTO announcements ( 
+    type,
+    title,
+    message,
+    announcement_docs
+    ) 
+    VALUES
+    (?,?,?,?)`;
+
+  db.query(query, values, (err, result) => {
+    if (err) {
+      console.error('Error inserting data into announcements:', err);
+      res.status(500).send({ message: "erro in inserting leave", error: err });
+      return;
+    }
+    console.log('Data inserted into tasks table:', result);
+    res.status(200).send({ status: 200, message: 'insertion success in announcements table', document: req.body });
+  });
+});
+
+// 18. get all announcements
+app.get('/getannouncements', (req, res) => {
+  //sql query to reteive all the documents of table
+  const query = "SELECT * FROM `announcements` WHERE 1";
+  db.query(query, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'can not retrieve announcements' });
+    } else {
+      res.json({ status: 200, message: "got all announcements successfully", data: results });
     }
   });
 
