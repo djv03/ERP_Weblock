@@ -288,8 +288,7 @@ app.get('/getusers', (req, res) => {
 })
 //get employee by id
 app.get('/getemployeebyid/:id', (req, res) => {
-  console.log(req.params.id)
-  if (req.params.id === null) {
+  if (NaN(req.params.id)) {
     res.status(400).json({ message: "employee id is required" });
   }
   db.query(`SELECT * FROM employee WHERE 	employeeId =${req.params.id}`, (err, results) => {
@@ -307,7 +306,9 @@ app.get('/getemployeebyid/:id', (req, res) => {
 // 5. add projects api
 
 //taking its documents from frontend post req
-//        NOTE: here seperate folder is assigned for the storage for project docs  
+//        NOTE: here seperate folder is assigned for the storage for project docs 
+
+//api structure: this api is nested by 3 level means, another query is performed when project insertion query is performed sucessfully(from line 360).  
 const project_docs_storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, './public/project_docs');
@@ -334,7 +335,6 @@ app.post('/addproject', project_docs_upload.array('projectDocs'), checkRequiredF
     req.body.endDate,
     req.body.participants,
     req.body.totalTasks,
-    0,
     !req.files ? "" : JSON.stringify(req.files.map(file => file.filename))
   ];
 
@@ -345,20 +345,58 @@ app.post('/addproject', project_docs_upload.array('projectDocs'), checkRequiredF
     endDate,
     participants,
     totalTasks,
-    completedTasks,
     projectDocs
     ) 
     VALUES
     (?,?,?,?,
-      ?,?,?,?)`;
+      ?,?,?)`;
 
   db.query(query, values, (err, result) => {
     if (err) {
       console.error('Error inserting data into projects:', err);
-      res.status(500).send({ message: "erro in inserting projects.projectDocs", error: err });
+      res.status(500).send({ message: "erro in inserting projects", error: err });
       return;
     }
-    res.status(200).send({ status: 200, message: 'insertion sucess in employee_document' });
+    //this is the query performed when project insertion qiery is done
+    //this the query to get project id by special SQL query to get id of latest document inserted in the DB
+    // CAUTION:  this query is returning id of the inserted document from the "WHOLE DATABASE", means if a inseriton has performed at seperate location then this will return that id, not our project id
+    //            BUT since these two queries are performing within the one API call then noting to worry about much(may be)     
+    db.query("SELECT LAST_INSERT_ID();", (err, result) => {
+      if (err) {
+        console.error('project has not inserted sucessfully', err);
+        res.status(500).send({ message: "can not get id of project", error: err });
+        return;
+      }
+      //if we get id of project sucessfully then following logic will triggered
+
+      // s1- split incoming string of the participants (in form of 102,103,103..)  
+      const arr = req.body.participants.split(",");
+
+      // generate a pair of [employeeId, projectId] for the inserting multiple values in the employeeprojects table 
+      const gen_val = () => {
+        let ans = []
+        for (let i = 0; i < arr.length; i++) {
+          // beware: all the participants are in string formate so do we must have convert it into the int
+          const element = parseInt(arr[i]);
+          let pair = [element, result[0]['LAST_INSERT_ID()']];
+          ans.push(pair);
+        }
+        return ans;
+      }
+      const employee_project_pairs = gen_val();
+      console.log("formatted values are", employee_project_pairs);
+
+      //upon sucessfull generation of pairs run our 3rd query, i.e. insert pairs into the employeeprojects table 
+      const query = `INSERT into employeeprojects (	employeeId,projectId) VALUES ?`
+      db.query(query, [employee_project_pairs], (err, result) => {
+        if (err) {
+          console.error('can not get id of project', err);
+          res.status(500).send({ message: "can not insert into the employeeprojects but projects updated sucessfully", error: err });
+          return;
+        }
+        res.status(200).send({ status: 200, message: 'insertion sucess in projects as well as employeeprojects', data: result });
+      })
+    });
   });
 });
 
@@ -375,6 +413,35 @@ app.get('/getprojects', (req, res) => {
   });
 
 })
+
+// get projects by employeeId
+app.get('/getprojectsbyempid/:id', (req, res) => {
+  if (isNaN(req.params.id)) {
+    res.status(400).json({ message: "please provide appropriate id " });
+  }
+  db.query(`SELECT * FROM employeeprojects WHERE 	employeeId =${req.params.id}`, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'Internal server error', message: err });
+    } else {
+      res.json({ status: 200, message: "projects for given employeeId", data: results });
+    }
+  });
+
+})
+// get projects by employeeId
+app.get('/getemployeebyprojectid/:id', (req, res) => {
+  if (isNaN(req.params.id)) {
+    res.status(400).json({ message: "please provide appropriate id " });
+  }
+  db.query(`SELECT * FROM employeeprojects WHERE 	projectId =${req.params.id}`, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'Internal server error', message: err });
+    } else {
+      res.json({ status: 200, message: "employee for given projectId", data: results });
+    }
+  });
+})
+
 
 //---------------------------- Tasks apis starts from here-------------------------
 
@@ -437,6 +504,20 @@ app.post('/addtask', task_docs_upload.array('taskDocs'), checkRequiredFields([
     res.status(200).send({ status: 200, message: 'task Docs inserted sucessfully' });
   });
 });
+
+// get tasks by employeeId
+app.get('/gettasksbyempid/:id', (req, res) => {
+  if (isNaN(req.params.id)) {
+    res.status(400).json({ message: "please provide appropriate id " });
+  }
+  db.query(`SELECT * FROM tasks WHERE assignedTo =${req.params.id}`, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'Internal server error', message: err });
+    } else {
+      res.json({ status: 200, message: "employee for given taskId", data: results });
+    }
+  });
+})
 
 // 6. get all projects
 app.get('/gettasks', (req, res) => {
@@ -593,7 +674,7 @@ app.post('/clockin', (req, res) => {
 
 app.post('/clockout', checkRequiredFields(["employeeId"]), (req, res) => {
 
-  db.query(`SELECT * from attendence WHERE employeeId=${req.body.employeeId} AND 	breakEnd="00:00:00"`, (err, results) => {
+  db.query(`SELECT * from attendence WHERE employeeId=${req.body.employeeId} AND 	clockOut="00:00:00"`, (err, results) => {
     if (results.length == 0) {
       res.status(400).json({ message: 'employee has not clocked in' });
     }
@@ -612,7 +693,7 @@ app.post('/clockout', checkRequiredFields(["employeeId"]), (req, res) => {
     db.query(query, (err, results) => {
       if (err) {
         console.error('Error executing MySQL query:', err);
-        res.status(500).json({ error: 'clock-out in error' });
+        res.status(500).json({ error: 'clock-out in error', err });
         return;
       }
       res.status(200).json({ status: 200, message: 'employee clocked-out' });
@@ -620,6 +701,21 @@ app.post('/clockout', checkRequiredFields(["employeeId"]), (req, res) => {
   })
 
 })
+
+// get attendence by employeeId
+app.get('/getattendencebyemployeeId/:id', (req, res) => {
+  if (isNaN(req.params.id)) {
+    res.status(400).json({ message: "please provide appropriate id " });
+  }
+  db.query(`SELECT * FROM attendence WHERE 	employeeId =${req.params.id}`, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'Internal server error', message: err });
+    } else {
+      res.json({ status: 200, message: "attendence for given employee", data: results });
+    }
+  });
+})
+
 
 
 //12. -------->break start API
@@ -701,6 +797,21 @@ app.post('/breakend', checkRequiredFields(["employeeId"]), (req, res) => {
 
 })
 
+// get breaks by employeeId
+app.get('/getbreaksbyemployeeId/:id', (req, res) => {
+  if (isNaN(req.params.id)) {
+    res.status(400).json({ message: "please provide appropriate id " });
+  }
+  db.query(`SELECT * FROM breaks WHERE employeeId =${req.params.id}`, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'Internal server error', message: err });
+    } else {
+      res.json({ status: 200, message: "breaks for given employee", data: results });
+    }
+  });
+})
+
+
 // --------------> requests generation api <------------------
 
 // 14. create general request API
@@ -717,7 +828,7 @@ const requests_docs_storage = multer.diskStorage({
 });
 const requests_docs_upload = multer({ storage: requests_docs_storage })
 
-app.post('/createrequest', requests_docs_upload.single('value'),checkRequiredFields([
+app.post('/createrequest', requests_docs_upload.single('value'), checkRequiredFields([
   "employeeId",
   "type",
   "description",
@@ -839,7 +950,7 @@ app.get('/getrequests', (req, res) => {
     if (err) {
       res.status(500).json({ status: 400, error: err });
     } else {
-      res.json({status:200,message:"got the requests ",data: results});
+      res.json({ status: 200, message: "got the requests ", data: results });
     }
   });
 
@@ -863,9 +974,10 @@ app.post('/addannouncements', announcements_docs_upload.array('announcements_doc
   "message",
 ]), (req, res) => {
   const values = [
-    !req.body.type?"general":req.body.type,
+    !req.body.type ? "general" : req.body.type,
     req.body.title,
     req.body.message,
+    req.body.announcement_date,
     !req.files ? "" : JSON.stringify(req.files.map(file => file.filename))
   ];
 
@@ -873,10 +985,12 @@ app.post('/addannouncements', announcements_docs_upload.array('announcements_doc
     type,
     title,
     message,
+    announcement_date,
     announcement_docs
     ) 
     VALUES
-    (?,?,?,?)`;
+    (?,?,?,?,
+      ?)`;
 
   db.query(query, values, (err, result) => {
     if (err) {
@@ -888,7 +1002,6 @@ app.post('/addannouncements', announcements_docs_upload.array('announcements_doc
     res.status(200).send({ status: 200, message: 'insertion success in announcements table', document: req.body });
   });
 });
-
 // 18. get all announcements
 app.get('/getannouncements', (req, res) => {
   //sql query to reteive all the documents of table
@@ -902,7 +1015,18 @@ app.get('/getannouncements', (req, res) => {
   });
 
 })
-
+//19. get holidays
+app.get('/getholidays', (req, res) => {
+  //sql query to reteive all the documents of table
+  const query = 'SELECT * FROM `announcements` WHERE type="holiday"'
+  db.query(query, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'can not retrieve holidays' });
+    } else {
+      res.json({ status: 200, message: "got all announcements successfully", data: results });
+    }
+  });
+})
 //listening app
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
