@@ -457,7 +457,9 @@ app.get('/getprojectbyid/:id', (req, res) => {
 
 })
 
-//get all project corrospond to given employeeId
+//get all project corrospond to given employeeId, along with details of each project
+// so first Query is fetxhing all project assign to employee from "employeeprojects" table 
+// and second query is fetching project details of each projects  
 app.get('/getprojectsbyempid/:id', async (req, res) => {
   if (isNaN(req.params.id)) {
     res.status(400).json({ message: "please provide appropriate id " });
@@ -499,6 +501,56 @@ app.get('/getprojectsbyempid/:id', async (req, res) => {
     }));
 
     res.json({ status: 200, message: "projects for given employeeId", data: projectsWithDetails });
+  }
+  catch (error) {
+    console.log("Error fetching employee projects:", error);
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
+});
+
+// fetch particulor project by project id
+
+app.get('/getprojectsbyprojectid/:id', async (req, res) => {
+  if (isNaN(req.params.id)) {
+    res.status(400).json({ message: "please provide appropriate project id " });
+    return; // Add return to exit the function if ID is not valid
+  }
+
+  //firstly we create promise to get all projectsIds from given employeeId (from employeeprojects table)
+  try {
+    const employeeProjects = await new Promise((resolve, reject) => {
+      const query = `SELECT * FROM employeeprojects WHERE projectId = ${req.params.id}`
+      db.query(query, (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results);
+        }
+      });
+    });
+
+    // Map over the results and fetch project details for each project
+    const employeesWithDetails = await Promise.all(employeeProjects.map(async (row) => {
+      try {
+        const employeeDetails = await new Promise((resolve, reject) => {
+          db.query(`SELECT * from employee WHERE employeeId = ${row.employeeId}`, (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result[0]);
+            }
+          });
+        });
+        // Combine project details with the row
+        return { ...row, employeeDetails };
+      } catch (error) {
+        console.log("Error fetching project details:", error);
+        // If employee details fetching fails, return row without details
+        return row;
+      }
+    }));
+
+    res.json({ status: 200, message: "projects along with employee details for given projectId", data: employeesWithDetails });
   }
   catch (error) {
     console.log("Error fetching employee projects:", error);
@@ -792,6 +844,20 @@ app.get('/getanniversaries', (req, res) => {
 })
 
 
+//get leaves by employeeId
+app.get('/getleavesbyempid/:id', (req, res) => {
+  if (isNaN(req.params.id)) {
+    res.status(400).json({ message: "please provide appropriate id " });
+  }
+  db.query(`SELECT * FROM leaves WHERE empId =${req.params.id}`, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'Internal server error', message: err });
+    } else {
+      res.json({ status: 200, message: "got all leaves of employee sucessfully", data: results });
+    }
+  });
+})
+
 //---------------------  all Clock APIs starts here-----------------------------
 
 
@@ -1072,7 +1138,7 @@ app.post('/updaterequest', checkRequiredFields([
     console.log(result)
     if (req.body.type == "clocktime") {
       const query = `UPDATE requests SET status = "${req.body.update}" WHERE requestId = ${req.body.requestId}`
-      const sub_query = `UPDATE attendence SET clockIn = "${result[0].value}" WHERE 	employeeId = ${result[0].employeeId}`
+      const sub_query = `UPDATE attendence SET ${result[0].keyname} = "${result[0].value}" WHERE 	employeeId = ${result[0].employeeId}`
 
       Promise.all([
         executeQuery(query),
@@ -1216,6 +1282,57 @@ app.get('/getholidays', (req, res) => {
     }
   });
 })
+
+// //get today's absent employees 
+// app.get('/getabsents',async(req,res)=>{
+
+//   try {
+//     const allEmployees= await new Promise((resolve,reject)=>{
+//       const query= `SELECT * from employee WHERE 1`
+
+//       db.query(query,(err,results)=>{
+//         if (err) {
+//           reject(err);
+//         } else {
+//           resolve(results);
+//         }
+
+//       })
+//     })
+
+//     const absentEmployees = await Promise.all(allEmployees.map(async(row)=>{
+
+//       try {
+//         const isAbsent = await new Promise((resolve,reject)=>{
+           
+//         })
+//       } catch (error) {
+        
+//       }
+
+//     }))
+//   } catch (error) {
+    
+//   } 
+// })
+
+
+// //get today's absent employees 
+// app.get('/getabsents',async(req,res)=>{
+
+//   const query=`
+//   SELECT order_id, order_date
+// FROM orders
+// WHERE NOT EXISTS (
+//     SELECT 1
+//     FROM customers
+//     WHERE orders.customer_id = customers.customer_id
+// );
+
+//   `
+// })
+
+
 //listening app
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
