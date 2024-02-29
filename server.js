@@ -153,6 +153,45 @@ app.post('/createemployee', employee_pics, checkRequiredFields([
   });
 });
 
+//edit employee details
+
+//editable: endDate,	participants,	totalTasks,completedTasks,projectDocs
+app.post('/editemployee', employee_pics, (req, res) => {
+  console.log(req.body)
+  console.log(req.files)
+  const query = `UPDATE employee 
+    SET 
+      name='${req.body?.name}',
+      email='${req.body?.email}',
+      companyEmail='${req.body?.companyEmail}',
+      password='${req.body?.password}',
+      gender='${req.body?.gender}',
+      marital_status='${req.body?.marital_status}',
+      mobileNumber='${req.body?.mobileNumber}',
+      altmobileNumber='${req.body?.altmobileNumber}',
+      address='${req.body?.address}',
+      date_of_birth='${req.body?.date_of_birth}',
+      date_of_joining='${req.body?.date_of_joining}',
+      designation='${req.body?.designation}',
+      ExperienceType='${req.body?.ExperienceType}',
+      salarySlip='${req.files.salarySlip[0].filename != undefined ? req.files.salarySlip[0].filename : ''}',
+      experienceLetter='${req.files.experienceLetter[0].filename != undefined ? req.files.experienceLetter[0].filename : ""}',
+      profilePic= '${req.files.profilePic[0].filename != undefined ? req.files.profilePic[0].filename : ""}',
+      salary='${req.body?.salary}'
+  WHERE
+     employeeId = ${req.body.employeeId}`
+
+  db.query(query, (err, results) => {
+    if (err) {
+      console.log(err)
+      res.json({ status: 500, message: "Error in updating employee Data ", err });
+    } else {
+      res.json({ status: 200, message: "employee details updated successfully", data: results });
+    }
+  });
+});
+
+
 // 3. add education details of employee
 
 //taking its documents from frontend post req. 
@@ -408,6 +447,8 @@ app.post('/editproject', project_docs_upload.array('projectDocs'), (req, res) =>
   console.log(req.body)
   const query = `UPDATE projects 
   SET 
+    ProjectName='${req.body?.ProjectName}',
+    projectDescription='${req.body?.projectDescription}',
      endDate = '${req.body?.endDate}',
      participants = '${req.body?.participants}',
      totalTasks = ${req.body?.totalTasks},
@@ -491,8 +532,18 @@ app.get('/getprojectsbyempid/:id', async (req, res) => {
             }
           });
         });
+
+        const employeeDetails = await new Promise((resolve, reject) => {
+          db.query(`SELECT * FROM employee WHERE employeeId=${row.employeeId}`, (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          });
+        });
         // Combine project details with the row
-        return { ...row, projectDetails };
+        return { ...row, projectDetails, employeeDetails };
       } catch (error) {
         console.log("Error fetching project details:", error);
         // If project details fetching fails, return row without details
@@ -572,6 +623,45 @@ app.get('/getemployeebyprojectid/:id', (req, res) => {
   });
 })
 
+//get active projects
+app.get('/getactiveprojects', (req, res) => {
+  var today = new Date();
+
+  // Extract the year, month, and day components from the Date object
+  var year = today.getFullYear();
+  var month = today.getMonth() + 1; // Note: January is 0, so we add 1 to get the correct month
+  var day = today.getDate();
+
+  var formattedDate = year + '-' + (month < 10 ? '0' + month : month) + '-' + (day < 10 ? '0' + day : day);
+
+  const query = `SELECT * from projects WHERE endDate> '${formattedDate}'`;
+  db.query(query, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'Internal server error', message: err });
+    } else {
+      res.json({ status: 200, message: "all active projects", data: results });
+    }
+  });
+})
+
+//get active projects
+app.get('/getdueprojects', (req, res) => {
+  var today = new Date();
+
+  var year = today.getFullYear();
+  var month = today.getMonth() + 1; // Note: January is 0, so we add 1 to get the correct month
+  var day = today.getDate();
+  var formattedDate = year + '-' + (month < 10 ? '0' + month : month) + '-' + (day < 10 ? '0' + day : day);
+
+  const query = `SELECT * from projects WHERE endDate<'${formattedDate}'`;
+  db.query(query, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'Internal server error', message: err });
+    } else {
+      res.json({ status: 200, message: "all due projects", data: results });
+    }
+  });
+})
 
 //---------------------------- Tasks apis starts from here-------------------------
 
@@ -635,7 +725,7 @@ app.post('/addtask', task_docs_upload.array('taskDocs'), checkRequiredFields([
   });
 });
 
-app.post('/edittask',task_docs_upload.array('taskDocs'), (req, res) => {
+app.post('/edittask', task_docs_upload.array('taskDocs'), (req, res) => {
   console.log(req.body)
   const query = `UPDATE tasks 
   SET 
@@ -657,19 +747,73 @@ app.post('/edittask',task_docs_upload.array('taskDocs'), (req, res) => {
   });
 });
 
-// get tasks by employeeId
-app.get('/gettasksbyempid/:id', (req, res) => {
+// get tasks by employeeId along with its assgning details
+app.get('/gettasksbyempid/:id', async (req, res) => {
   if (isNaN(req.params.id)) {
     res.status(400).json({ message: "please provide appropriate id " });
+    return; // Add return to exit the function if ID is not valid
   }
-  db.query(`SELECT * FROM tasks WHERE assignedTo =${req.params.id}`, (err, results) => {
-    if (err) {
-      res.status(500).json({ error: 'Internal server error', message: err });
-    } else {
-      res.json({ status: 200, message: "employee for given taskId", data: results });
-    }
-  });
-})
+
+  //firstly we create promise to get all projectsIds from given employeeId (from employeeprojects table)
+  try {
+    const employeeTask = await new Promise((resolve, reject) => {
+      const query = `SELECT * FROM tasks WHERE assignedTo = ${req.params.id}`
+      db.query(query, (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results);
+        }
+      });
+    });
+
+    // Map over the results and fetch project details for each project
+    const projectsDetails = await Promise.all(employeeTask.map(async (row) => {
+      try {
+        const taskDetails = await new Promise((resolve, reject) => {
+          db.query(`SELECT * from projects WHERE projectId = ${row.projectId}`, (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result[0]);
+            }
+          });
+        });
+
+        const employeeDetails = await new Promise((resolve, reject) => {
+          db.query(`SELECT * from employee WHERE employeeId = ${row.assignedTo}`, (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          });
+        });
+        const mentorDetails = await new Promise((resolve, reject) => {
+          db.query(`SELECT * from employee WHERE employeeId = ${row.reportTo}`, (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          });
+        });
+        // Combine project details with the row
+        return { ...row, taskDetails, employeeDetails, mentorDetails };
+      } catch (error) {
+        console.log("Error fetching project details:", error);
+        // If project details fetching fails, return row without details
+        return row;
+      }
+    }));
+
+    res.json({ status: 200, message: "projects for given employeeId", data: projectsDetails });
+  }
+  catch (error) {
+    console.log("Error fetching employee projects:", error);
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
+});
 
 // 6. get all tasks
 app.get('/gettasks', (req, res) => {
@@ -682,8 +826,48 @@ app.get('/gettasks', (req, res) => {
       res.json({ status: 200, message: "got tasks successfully", data: results });
     }
   });
-
 })
+
+//get active projects
+app.get('/getactivetasks', (req, res) => {
+  var today = new Date();
+
+  // Extract the year, month, and day components from the Date object
+  var year = today.getFullYear();
+  var month = today.getMonth() + 1; // Note: January is 0, so we add 1 to get the correct month
+  var day = today.getDate();
+
+  var formattedDate = year + '-' + (month < 10 ? '0' + month : month) + '-' + (day < 10 ? '0' + day : day);
+
+  const query = `SELECT * from tasks WHERE endDate> '${formattedDate}'`;
+  db.query(query, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'Internal server error', message: err });
+    } else {
+      res.json({ status: 200, message: "all active tasks", data: results });
+    }
+  });
+})
+
+//get active projects
+app.get('/getduetasks', (req, res) => {
+  var today = new Date();
+
+  var year = today.getFullYear();
+  var month = today.getMonth() + 1; // Note: January is 0, so we add 1 to get the correct month
+  var day = today.getDate();
+  var formattedDate = year + '-' + (month < 10 ? '0' + month : month) + '-' + (day < 10 ? '0' + day : day);
+
+  const query = `SELECT * from tasks WHERE endDate<'${formattedDate}'`;
+  db.query(query, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'Internal server error', message: err });
+    } else {
+      res.json({ status: 200, message: "all due tasks", data: results });
+    }
+  });
+})
+
 
 //---------------------> leaves apis starts here <----------------------
 // 7. apply leave API
@@ -776,7 +960,7 @@ app.get('/getleaves', (req, res) => {
 
 //leave on today
 
-app.get('/getleavesoftoday', (req, res) => {
+app.get('/getleavesoftoday', async (req, res) => {
   const today = new Date;
   var year = today.getFullYear();
   var month = today.getMonth() + 1; // Note: January is 0, so we add 1 to get the correct month
@@ -784,15 +968,44 @@ app.get('/getleavesoftoday', (req, res) => {
 
 
   var todaydate = year + "-" + 0 + month + "-" + day;
-  console.log(todaydate)
-  const query = `SELECT * FROM leaves WHERE startDate>="${todaydate}" AND status="approve" ORDER BY startDate ASC `;
-  db.query(query, (err, results) => {
-    if (err) {
-      res.status(500).json({ error: 'can not retrieve leaves of today' });
-    } else {
-      res.json({ status: 200, message: "got all leaves of today successfully", data: results });
-    }
+
+  const todaysleaves = await new Promise((resolve, reject) => {
+    const query = `SELECT * FROM leaves WHERE startDate>='${todaydate}'`
+    db.query(query, (err, results) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(results);
+      }
+    });
   });
+
+  const leavesWithDetails = await Promise.all(todaysleaves.map(async (row) => {
+
+    try {
+      const leavesDetail = await new Promise((resolve, reject) => {
+        db.query(`SELECT * from employee WHERE employeeId = ${row.empId}`, (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result[0]);
+          }
+        });
+      });
+      // Combine project details with the row
+      return { ...row, leavesDetail };
+    }
+
+    catch (error) {
+      console.log("Error fetching project details:", error);
+      // If project details fetching fails, return row without details
+      return row;
+    }
+
+
+  }));
+
+  res.json({ status: 200, message: "projects for given employeeId", data: leavesWithDetails });
 })
 
 app.get('/getbirthdays', (req, res) => {
@@ -1136,64 +1349,125 @@ app.post('/updaterequest', checkRequiredFields([
       return;
     }
     console.log(result)
-    if (req.body.type == "clocktime") {
-      const query = `UPDATE requests SET status = "${req.body.update}" WHERE requestId = ${req.body.requestId}`
-      const sub_query = `UPDATE attendence SET ${result[0].keyname} = "${result[0].value}" WHERE 	employeeId = ${result[0].employeeId}`
+    if (req.body.update === "reject") {
+      if (req.body.type == "clocktime") {
+        const query = `UPDATE requests SET status = "${req.body.update}" WHERE requestId = ${req.body.requestId}`
 
-      Promise.all([
-        executeQuery(query),
-        executeQuery(sub_query)
-      ])
-        .then(results => {
-          // Combine the results into a single object
-          const combinedData = {
-            request_updation: results[0],
-            data_updation: results[1]
-          };
+        Promise.all([
+          executeQuery(query)
+        ])
+          .then(results => {
+            // Combine the results into a single object
+            const combinedData = {
+              request_updation: results[0],
+              data_updation: results[1]
+            };
 
-          // Send the combined data as a response
-          res.json({ status: 200, message: 'request updated successfully', data: combinedData });
-        })
-        .catch(error => {
-          console.error('Error in updating request: ' + error);
-          res.status(500).json({ error: 'Internal server error', message: error });
+            // Send the combined data as a response
+            res.json({ status: 200, message: 'request updated successfully', data: combinedData });
+          })
+          .catch(error => {
+            console.error('Error in updating request: ' + error);
+            res.status(500).json({ error: 'Internal server error', message: error });
+          });
+      }
+      else if (req.body.type == "update_employee") {
+        const query = `UPDATE requests SET status = "${req.body.update}" WHERE requestId = ${req.body.requestId}`
+
+        Promise.all([
+          executeQuery(query)
+        ])
+          .then(results => {
+            // Combine the results into a single object
+            const combinedData = {
+              request_updation: results[0],
+              data_updation: results[1]
+            };
+
+            // Send the combined data as a response
+            res.json({ status: 200, message: 'request updated successfully', data: combinedData });
+          })
+          .catch(error => {
+            console.error('Error in updating request: ' + error);
+            res.status(500).json({ error: 'Internal server error', message: error });
+          });
+      }
+
+      function executeQuery(query) {
+        return new Promise((resolve, reject) => {
+          db.query(query, (error, results) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve(results);
+            }
+          });
         });
+      }
+
     }
-    else if (req.body.type == "update_employee") {
-      const query = `UPDATE requests SET status = "${req.body.update}" WHERE requestId = ${req.body.requestId}`
-      const sub_query = `UPDATE employee SET ${result[0].keyname} = "${result[0].value}" WHERE employeeId  = ${result[0].employeeId}`
+    else {
+      if (req.body.type == "clocktime") {
+        const query = `UPDATE requests SET status = "${req.body.update}" WHERE requestId = ${req.body.requestId}`
+        const sub_query = `UPDATE attendence SET ${result[0].keyname} = "${result[0].value}" WHERE 	employeeId = ${result[0].employeeId}`
 
-      Promise.all([
-        executeQuery(query),
-        executeQuery(sub_query)
-      ])
-        .then(results => {
-          // Combine the results into a single object
-          const combinedData = {
-            request_updation: results[0],
-            data_updation: results[1]
-          };
+        Promise.all([
+          executeQuery(query),
+          executeQuery(sub_query)
+        ])
+          .then(results => {
+            // Combine the results into a single object
+            const combinedData = {
+              request_updation: results[0],
+              data_updation: results[1]
+            };
 
-          // Send the combined data as a response
-          res.json({ status: 200, message: 'request updated successfully', data: combinedData });
-        })
-        .catch(error => {
-          console.error('Error in updating request: ' + error);
-          res.status(500).json({ error: 'Internal server error', message: error });
+            // Send the combined data as a response
+            res.json({ status: 200, message: 'request updated successfully', data: combinedData });
+          })
+          .catch(error => {
+            console.error('Error in updating request: ' + error);
+            res.status(500).json({ error: 'Internal server error', message: error });
+          });
+      }
+      else if (req.body.type == "update_employee") {
+        const query = `UPDATE requests SET status = "${req.body.update}" WHERE requestId = ${req.body.requestId}`
+        const sub_query = `UPDATE employee SET ${result[0].keyname} = "${result[0].value}" WHERE employeeId  = ${result[0].employeeId}`
+
+        Promise.all([
+          executeQuery(query),
+          executeQuery(sub_query)
+        ])
+          .then(results => {
+            // Combine the results into a single object
+            const combinedData = {
+              request_updation: results[0],
+              data_updation: results[1]
+            };
+
+            // Send the combined data as a response
+            res.json({ status: 200, message: 'request updated successfully', data: combinedData });
+          })
+          .catch(error => {
+            console.error('Error in updating request: ' + error);
+            res.status(500).json({ error: 'Internal server error', message: error });
+          });
+      }
+
+      function executeQuery(query) {
+        return new Promise((resolve, reject) => {
+          db.query(query, (error, results) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve(results);
+            }
+          });
         });
+      }
+
     }
 
-    function executeQuery(query) {
-      return new Promise((resolve, reject) => {
-        db.query(query, (error, results) => {
-          if (error) {
-            reject(error);
-          } else {
-            resolve(results);
-          }
-        });
-      });
-    }
   });
 })
 
@@ -1210,6 +1484,101 @@ app.get('/getrequests', (req, res) => {
   });
 
 })
+
+// get request by id
+app.get('/getrequestbyid/:id', (req, res) => {
+  if (isNaN(req.params.id)) {
+    res.status(400).json({ message: "request id is required" });
+  }
+  db.query(`SELECT * FROM requests WHERE 	requestId =${req.params.id}`, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'Internal server error', message: err });
+    } else {
+      res.json({ status: 200, message: "got request successfully", data: results });
+    }
+  });
+
+})
+
+//get request by type
+// app.post('/getrequestsbytype', (req, res) => {
+//   console.log(req.body)
+//   db.query(`SELECT * FROM requests WHERE 	type ='${req.body.type} AND status='pending'`, (err, results) => {
+
+//     if (err) {
+//       res.status(500).json({ error: 'Internal server error', message: err });
+//     } else {
+//       if (results.length==0) {
+//         res.json({ status: 500, message: `no requests found for given type` });
+//       }
+//       else{
+//         for (let index = 0; index < results.length; index++) {
+//           const request = results[index];
+//           db.query(`SELECT name FROM employee WHERE employeeId =${request.employeeId}`,(err,result)=>{
+//             if (err) {
+//               request.employeeName="name";
+//             }
+//             console.log(result[0].name)
+//             request.employeeName=result[0].name; 
+//           })
+//         }
+//         res.json({ status: 200, message: `got requests for ${req.body.type} successfully`, data: results });
+//       }
+//     }
+//   });
+
+// })
+app.post('/getrequestsbytype', async (req, res) => {
+  console.log(req.body);
+  try {
+    const results = await new Promise((resolve, reject) => {
+      db.query(`SELECT * FROM requests WHERE type = '${req.body.type}' AND status = 'pending'`, (err, results) => {
+        if (err) reject(err);
+        else resolve(results);
+      });
+    });
+
+    if (results.length === 0) {
+      res.json({ status: 500, message: `No requests found for the given type` });
+      return;
+    }
+
+    for (let index = 0; index < results.length; index++) {
+      const request = results[index];
+      try {
+        const employeeResult = await new Promise((resolve, reject) => {
+          db.query(`SELECT name FROM employee WHERE employeeId = ${request.employeeId}`, (err, result) => {
+            if (err) reject(err);
+            else resolve(result);
+          });
+        });
+        request.employeeName = employeeResult[0].name;
+      } catch (err) {
+        console.error("Error fetching employee name:", err);
+        request.employeeName = "Unknown";
+      }
+    }
+
+    res.json({ status: 200, message: `Got requests for ${req.body.type} successfully`, data: results });
+  } catch (err) {
+    console.error("Database error:", err);
+    res.status(500).json({ error: 'Internal server error', message: err });
+  }
+});
+
+//get all request
+app.get('/getallrequests', (req, res) => {
+  //sql query to reteive all the documents of table
+  const query = "SELECT * FROM `requests` WHERE 1";
+  db.query(query, (err, results) => {
+    if (err) {
+      res.status(500).send('Error fetching in data from my sql: ', err);
+    } else {
+      res.json({ status: 200, message: "got requests successfully", data: results });
+    }
+  });
+})
+
 
 // ---------------------> announcements APIs starts here <-------------------
 
@@ -1283,54 +1652,45 @@ app.get('/getholidays', (req, res) => {
   });
 })
 
-// //get today's absent employees 
-// app.get('/getabsents',async(req,res)=>{
+//get today's absent employees 
+app.get('/getabsents', async (req, res) => {
+  // Create a new Date object which will represent today's date
+  var today = new Date();
 
-//   try {
-//     const allEmployees= await new Promise((resolve,reject)=>{
-//       const query= `SELECT * from employee WHERE 1`
-
-//       db.query(query,(err,results)=>{
-//         if (err) {
-//           reject(err);
-//         } else {
-//           resolve(results);
-//         }
-
-//       })
-//     })
-
-//     const absentEmployees = await Promise.all(allEmployees.map(async(row)=>{
-
-//       try {
-//         const isAbsent = await new Promise((resolve,reject)=>{
-           
-//         })
-//       } catch (error) {
-        
-//       }
-
-//     }))
-//   } catch (error) {
-    
-//   } 
-// })
+  // Extract the year, month, and day components from the Date object
+  var year = today.getFullYear();
+  var month = today.getMonth() + 1; // Note: January is 0, so we add 1 to get the correct month
+  var day = today.getDate();
 
 
-// //get today's absent employees 
-// app.get('/getabsents',async(req,res)=>{
+  // Format the date as YYYY-MM-DD and time as HH:MM:SS
+  var formattedDate = year + '-' + (month < 10 ? '0' + month : month) + '-' + (day < 10 ? '0' + day : day);
 
-//   const query=`
-//   SELECT order_id, order_date
-// FROM orders
-// WHERE NOT EXISTS (
-//     SELECT 1
-//     FROM customers
-//     WHERE orders.customer_id = customers.customer_id
-// );
 
-//   `
-// })
+  const query = `
+  SELECT employee.employeeId, employee.name 
+  FROM employee 
+  LEFT JOIN (
+      SELECT employeeId
+      FROM attendence
+      WHERE Date = '${formattedDate}'
+      UNION 
+      SELECT empId
+      FROM leaves
+      WHERE status = 'approve' AND startDate = ' ${formattedDate} ' 
+  ) AS union_result
+  ON employee.employeeId = union_result.employeeId 
+  WHERE union_result.employeeId IS NULL;
+  
+  `
+  db.query(query, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'can not retrieve absents employee' });
+    } else {
+      res.json({ status: 200, message: "got all absent employee sucessfull", data: results });
+    }
+  });
+})
 
 
 //listening app
