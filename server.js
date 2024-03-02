@@ -37,6 +37,7 @@ app.get('/', (req, res) => {
 const checkRequiredFields = require('./utils/validator.js')
 const getDate = require('./utils/getDate.js')
 const { todayDate, currentTime } = getDate()
+const queryPromise = require('./utils/queryPromise.js')
 //------------------------ your API goes here--------------------------
 
 // 1. admin login 
@@ -352,6 +353,39 @@ app.get('/getemployeebyid/:id', (req, res) => {
 
 })
 
+//delete employee
+
+app.get('/deleteemployeebyid/:id', (req, res) => {
+  if (isNaN(req.params.id)) {
+    res.status(400).json({ message: "employee id is required" });
+    return;
+  }
+  db.query(`DELETE FROM employee WHERE employeeId = ${req.params.id}`, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'Internal server error', message: err });
+      return;
+    }
+    db.query(`DELETE FROM employee_document WHERE employeeId = ${req.params.id}`, (err, results) => {
+
+      if (err) {
+        res.status(500).json({ error: 'Internal server error', message: err });
+        return;
+      }
+    })
+    db.query(`DELETE FROM employee_document WHERE employeeId = ${req.params.id}`, (err, results) => {
+
+      if (err) {
+        res.status(500).json({ error: 'Internal server error', message: err });
+        return;
+      }
+    })
+   
+    res.json({ status: 200, message: " employee deleted successfully", data: results });
+
+  })
+
+})
+
 //---------------------------- projects apis starts from here-------------------------
 
 // 5. add projects api
@@ -533,6 +567,20 @@ app.get('/getprojectsbyempid/:id', async (req, res) => {
         }
       });
     });
+
+    //trying new things, continue it later
+
+    // const query2 = `SELECT * FROM employeeprojects WHERE employeeId = ${req.params.id}`
+    // const employeeProjects2= queryPromise(query2,employeeProjects)
+    // .then((res)=>{
+    //   console.log("res is---->",res)
+    // })
+    // .catch((err)=>{
+    //   console.log(`error occured in ${employeeProjects} promise`)
+    // })
+    // console.log("employeeProjects2 is--->",employeeProjects2)
+
+    // const projectsWithDetails2= queryPromise(query2)
 
     // Map over the results and fetch project details for each project
     const projectsWithDetails = await Promise.all(employeeProjects.map(async (row) => {
@@ -943,8 +991,8 @@ app.get('/getleaves', (req, res) => {
       res.status(500).json({ error: 'can not retrieve leaves' });
       return;
     }
-      res.json({ status: 200, message: "got all leaves successfully", data: results });
-    
+    res.json({ status: 200, message: "got all leaves successfully", data: results });
+
   });
 
 })
@@ -1125,9 +1173,9 @@ app.post('/clockinstatus', checkRequiredFields(["employeeId"]), (req, res) => {
       res.status(400).json({ status: 400, message: 'employee has not clocked in' });
       return;
     }
-   
-      res.status(200).json({ status: 200, message: 'employee has clocked in' });
-    
+
+    res.status(200).json({ status: 200, message: 'employee has clocked in' });
+
   })
 })
 
@@ -1141,9 +1189,9 @@ app.get('/getattendencebyemployeeId/:id', (req, res) => {
     if (err) {
       res.status(500).json({ error: 'Internal server error', message: err });
       return;
-    } 
-      res.json({ status: 200, message: "attendence for given employee", data: results });
-    
+    }
+    res.json({ status: 200, message: "attendence for given employee", data: results });
+
   });
 })
 
@@ -1212,9 +1260,9 @@ app.get('/getbreaksbyemployeeId/:id', (req, res) => {
     if (err) {
       res.status(500).json({ error: 'Internal server error', message: err });
       return;
-    } 
-      res.json({ status: 200, message: "breaks for given employee", data: results });
-    
+    }
+    res.json({ status: 200, message: "breaks for given employee", data: results });
+
   });
 })
 
@@ -1413,9 +1461,9 @@ app.get('/getrequests', (req, res) => {
     if (err) {
       res.status(500).json({ status: 400, error: err });
       return;
-    } 
-      res.json({ status: 200, message: "got the requests ", data: results });
-    
+    }
+    res.json({ status: 200, message: "got the requests ", data: results });
+
   });
 
 })
@@ -1428,9 +1476,9 @@ app.get('/getrequestbyid/:id', (req, res) => {
   db.query(`SELECT * FROM requests WHERE 	requestId =${req.params.id}`, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'Internal server error', message: err });
-    } 
-      res.json({ status: 200, message: "got request successfully", data: results });
-    
+    }
+    res.json({ status: 200, message: "got request successfully", data: results });
+
   });
 
 })
@@ -1481,11 +1529,26 @@ app.get('/getallrequests', (req, res) => {
     if (err) {
       res.status(500).send('Error fetching in data from my sql: ', err);
       return;
-    } 
-      res.json({ status: 200, message: "got requests successfully", data: results });
-    
+    }
+    res.json({ status: 200, message: "got requests successfully", data: results });
+
   });
 })
+
+//get all pending request
+app.get('/getpendingrequests', (req, res) => {
+  //sql query to reteive all the documents of table
+  const query = "SELECT * FROM `requests` WHERE status ='pending'";
+  db.query(query, (err, results) => {
+    if (err) {
+      res.status(500).send('Error fetching in data from my sql: ', err);
+      return;
+    }
+    res.json({ status: 200, message: "got requests successfully", data: results });
+
+  });
+})
+
 
 
 // ---------------------> announcements APIs starts here <-------------------
@@ -1540,7 +1603,7 @@ app.get('/getannouncements', (req, res) => {
     if (err) {
       res.status(500).json({ error: 'can not retrieve announcements' });
       return;
-    } 
+    }
     res.json({ status: 200, message: "got all announcements successfully", data: results });
   });
 
@@ -1554,7 +1617,7 @@ app.get('/getholidays', (req, res) => {
     if (err) {
       res.status(500).json({ error: 'can not retrieve holidays' });
       return;
-    } 
+    }
     res.json({ status: 200, message: "got all announcements successfully", data: results });
   });
 })
@@ -1582,7 +1645,7 @@ app.get('/getabsents', async (req, res) => {
     if (err) {
       res.status(500).json({ error: 'can not retrieve absents employee' });
       return;
-    } 
+    }
     res.json({ status: 200, message: "got all absent employee sucessfull", data: results });
   });
 })
