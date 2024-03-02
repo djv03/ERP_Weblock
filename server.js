@@ -34,7 +34,9 @@ app.get('/', (req, res) => {
   res.sendFile(__dirname + '/index.html');
 });
 
-const checkRequiredFields = require('./middleware/validator.js')
+const checkRequiredFields = require('./utils/validator.js')
+const getDate = require('./utils/getDate.js')
+const { todayDate, currentTime } = getDate()
 //------------------------ your API goes here--------------------------
 
 // 1. admin login 
@@ -53,6 +55,7 @@ app.post('/adminlogin', checkRequiredFields([
     }
     if (results && results.length > 0) {
       res.status(200).json({ status: 200, message: 'Login successful', data: results[0]?.id });
+      return
     } else {
       res.status(401).json({ error: 'Unauthorized admin access' });
     }
@@ -96,6 +99,7 @@ app.post('/createemployee', employee_pics, checkRequiredFields([
   console.log(req.files)
   if (!req.files.profilePic) {
     res.status(400).send({ status: 200, message: 'provide profile pic' });
+    return
   }
   const values = [
     req.body.name,
@@ -183,8 +187,8 @@ app.post('/editemployee', employee_pics, (req, res) => {
 
   db.query(query, (err, results) => {
     if (err) {
-      console.log(err)
       res.json({ status: 500, message: "Error in updating employee Data ", err });
+      return
     } else {
       res.json({ status: 200, message: "employee details updated successfully", data: results });
     }
@@ -206,6 +210,7 @@ app.post('/addeducation', employee_educationD, checkRequiredFields([
 ]), (req, res) => {
   if (!req.files.degreeCertificate) {
     res.status(400).send({ status: 400, message: "please provide degree certificate" });
+    return
   }
   const values = [
     req.body.employeeId,
@@ -252,12 +257,15 @@ app.post('/adddocumets', employee_legalD, checkRequiredFields([
 ]), (req, res) => {
   if (!req.files.passbook) {
     res.status(400).send({ status: 400, message: 'provide  passbook' });
+    return
   }
   else if (!req.files.aadharcard) {
     res.status(400).send({ status: 400, message: 'provide  aadharcard' });
+    return;
   }
   else if (!req.files.pancard) {
     res.status(400).send({ status: 400, message: 'provide  pancard' });
+    return;
   }
 
   const values = [
@@ -320,6 +328,7 @@ app.get('/getusers', (req, res) => {
   db.query('SELECT * FROM employee', (err, results) => {
     if (err) {
       res.status(500).json({ error: 'Internal server error' });
+      return;
     } else {
       res.json({ status: 200, message: "got employees successfully", data: results });
     }
@@ -330,10 +339,12 @@ app.get('/getusers', (req, res) => {
 app.get('/getemployeebyid/:id', (req, res) => {
   if (isNaN(req.params.id)) {
     res.status(400).json({ message: "employee id is required" });
+    return;
   }
   db.query(`SELECT * FROM employee WHERE 	employeeId =${req.params.id}`, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'Internal server error', message: err });
+      return;
     } else {
       res.json({ status: 200, message: "got employee successfully", data: results });
     }
@@ -424,7 +435,6 @@ app.post('/addproject', project_docs_upload.array('projectDocs'), checkRequiredF
         return ans;
       }
       const employee_project_pairs = gen_val();
-      console.log("formatted values are", employee_project_pairs);
 
       //upon sucessfull generation of pairs run our 3rd query, i.e. insert pairs into the employeeprojects table 
       const query = `INSERT into employeeprojects (	employeeId,projectId) VALUES ?`
@@ -460,6 +470,7 @@ app.post('/editproject', project_docs_upload.array('projectDocs'), (req, res) =>
     if (err) {
       console.log(err)
       res.json({ status: 500, message: "Error in updating project Data ", err });
+      return;
     } else {
       res.json({ status: 200, message: "project updated successfully", data: results });
     }
@@ -476,6 +487,7 @@ app.get('/getprojects', (req, res) => {
   db.query(query, (err, results) => {
     if (err) {
       res.status(500).send('Error fetching in data from my sql: ', err);
+      return;
     } else {
       res.json({ status: 200, message: "got employee successfully", data: results });
     }
@@ -487,10 +499,12 @@ app.get('/getprojects', (req, res) => {
 app.get('/getprojectbyid/:id', (req, res) => {
   if (isNaN(req.params.id)) {
     res.status(400).json({ message: "project id is required" });
+    return;
   }
   db.query(`SELECT * FROM projects WHERE 	projectId =${req.params.id}`, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'Internal server error', message: err });
+      return;
     } else {
       res.json({ status: 200, message: "got project successfully", data: results });
     }
@@ -613,10 +627,12 @@ app.get('/getprojectsbyprojectid/:id', async (req, res) => {
 app.get('/getemployeebyprojectid/:id', (req, res) => {
   if (isNaN(req.params.id)) {
     res.status(400).json({ message: "please provide appropriate id " });
+    return;
   }
   db.query(`SELECT * FROM employeeprojects WHERE 	projectId =${req.params.id}`, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'Internal server error', message: err });
+      return;
     } else {
       res.json({ status: 200, message: "employee for given projectId", data: results });
     }
@@ -625,19 +641,12 @@ app.get('/getemployeebyprojectid/:id', (req, res) => {
 
 //get active projects
 app.get('/getactiveprojects', (req, res) => {
-  var today = new Date();
 
-  // Extract the year, month, and day components from the Date object
-  var year = today.getFullYear();
-  var month = today.getMonth() + 1; // Note: January is 0, so we add 1 to get the correct month
-  var day = today.getDate();
-
-  var formattedDate = year + '-' + (month < 10 ? '0' + month : month) + '-' + (day < 10 ? '0' + day : day);
-
-  const query = `SELECT * from projects WHERE endDate> '${formattedDate}'`;
+  const query = `SELECT * from projects WHERE endDate> '${todayDate}'`;
   db.query(query, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'Internal server error', message: err });
+      return;
     } else {
       res.json({ status: 200, message: "all active projects", data: results });
     }
@@ -646,17 +655,12 @@ app.get('/getactiveprojects', (req, res) => {
 
 //get active projects
 app.get('/getdueprojects', (req, res) => {
-  var today = new Date();
 
-  var year = today.getFullYear();
-  var month = today.getMonth() + 1; // Note: January is 0, so we add 1 to get the correct month
-  var day = today.getDate();
-  var formattedDate = year + '-' + (month < 10 ? '0' + month : month) + '-' + (day < 10 ? '0' + day : day);
-
-  const query = `SELECT * from projects WHERE endDate<'${formattedDate}'`;
+  const query = `SELECT * from projects WHERE endDate<'${todayDate}'`;
   db.query(query, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'Internal server error', message: err });
+      return;
     } else {
       res.json({ status: 200, message: "all due projects", data: results });
     }
@@ -716,11 +720,9 @@ app.post('/addtask', task_docs_upload.array('taskDocs'), checkRequiredFields([
 
   db.query(query, values, (err, result) => {
     if (err) {
-      console.error('Error inserting data into tasks table:', err);
       res.status(500).send({ message: "erro in inserting tasks.taskDocs", error: err });
       return;
     }
-    console.log('Data inserted into tasks table:', result);
     res.status(200).send({ status: 200, message: 'task created sucessfully' });
   });
 });
@@ -739,8 +741,8 @@ app.post('/edittask', task_docs_upload.array('taskDocs'), (req, res) => {
 
   db.query(query, (err, results) => {
     if (err) {
-      console.log(err)
       res.json({ status: 500, message: "Error in updating tasks ", err });
+      return;
     } else {
       res.json({ status: 200, message: "task updated successfully", data: results });
     }
@@ -810,7 +812,6 @@ app.get('/gettasksbyempid/:id', async (req, res) => {
     res.json({ status: 200, message: "projects for given employeeId", data: projectsDetails });
   }
   catch (error) {
-    console.log("Error fetching employee projects:", error);
     res.status(500).json({ error: 'Internal server error', message: error.message });
   }
 });
@@ -822,6 +823,7 @@ app.get('/gettasks', (req, res) => {
   db.query(query, (err, results) => {
     if (err) {
       res.status(500).send('Error fetching in data from task table: ', err);
+      return;
     } else {
       res.json({ status: 200, message: "got tasks successfully", data: results });
     }
@@ -830,19 +832,12 @@ app.get('/gettasks', (req, res) => {
 
 //get active projects
 app.get('/getactivetasks', (req, res) => {
-  var today = new Date();
 
-  // Extract the year, month, and day components from the Date object
-  var year = today.getFullYear();
-  var month = today.getMonth() + 1; // Note: January is 0, so we add 1 to get the correct month
-  var day = today.getDate();
-
-  var formattedDate = year + '-' + (month < 10 ? '0' + month : month) + '-' + (day < 10 ? '0' + day : day);
-
-  const query = `SELECT * from tasks WHERE endDate> '${formattedDate}'`;
+  const query = `SELECT * from tasks WHERE endDate> '${todayDate}'`;
   db.query(query, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'Internal server error', message: err });
+      return;
     } else {
       res.json({ status: 200, message: "all active tasks", data: results });
     }
@@ -851,17 +846,12 @@ app.get('/getactivetasks', (req, res) => {
 
 //get active projects
 app.get('/getduetasks', (req, res) => {
-  var today = new Date();
 
-  var year = today.getFullYear();
-  var month = today.getMonth() + 1; // Note: January is 0, so we add 1 to get the correct month
-  var day = today.getDate();
-  var formattedDate = year + '-' + (month < 10 ? '0' + month : month) + '-' + (day < 10 ? '0' + day : day);
-
-  const query = `SELECT * from tasks WHERE endDate<'${formattedDate}'`;
+  const query = `SELECT * from tasks WHERE endDate<'${currentTime}'`;
   db.query(query, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'Internal server error', message: err });
+      return;
     } else {
       res.json({ status: 200, message: "all due tasks", data: results });
     }
@@ -951,9 +941,10 @@ app.get('/getleaves', (req, res) => {
   db.query(query, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'can not retrieve leaves' });
-    } else {
-      res.json({ status: 200, message: "got all leaves successfully", data: results });
+      return;
     }
+      res.json({ status: 200, message: "got all leaves successfully", data: results });
+    
   });
 
 })
@@ -961,16 +952,9 @@ app.get('/getleaves', (req, res) => {
 //leave on today
 
 app.get('/getleavesoftoday', async (req, res) => {
-  const today = new Date;
-  var year = today.getFullYear();
-  var month = today.getMonth() + 1; // Note: January is 0, so we add 1 to get the correct month
-  var day = today.getDate();
-
-
-  var todaydate = year + "-" + 0 + month + "-" + day;
 
   const todaysleaves = await new Promise((resolve, reject) => {
-    const query = `SELECT * FROM leaves WHERE startDate>='${todaydate}'`
+    const query = `SELECT * FROM leaves WHERE startDate>='${todayDate}'`
     db.query(query, (err, results) => {
       if (err) {
         reject(err);
@@ -1025,6 +1009,7 @@ app.get('/getbirthdays', (req, res) => {
   db.query(query, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'can not retrieve leaves of today' });
+      return;
     }
 
     res.json({ status: 200, message: "got birthdays successfully", data: results });
@@ -1049,6 +1034,7 @@ app.get('/getanniversaries', (req, res) => {
 
     if (err) {
       res.status(500).json({ error: 'can not retrieve leaves of today' });
+      return;
     }
 
     res.json({ status: 200, message: "got birthdays successfully", data: results });
@@ -1065,6 +1051,7 @@ app.get('/getleavesbyempid/:id', (req, res) => {
   db.query(`SELECT * FROM leaves WHERE empId =${req.params.id}`, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'Internal server error', message: err });
+      return;
     } else {
       res.json({ status: 200, message: "got all leaves of employee sucessfully", data: results });
     }
@@ -1076,26 +1063,11 @@ app.get('/getleavesbyempid/:id', (req, res) => {
 
 //10. -------->clock-in API
 app.post('/clockin', (req, res) => {
-  // Create a new Date object which will represent today's date
-  var today = new Date();
 
-  // Extract the year, month, and day components from the Date object
-  var year = today.getFullYear();
-  var month = today.getMonth() + 1; // Note: January is 0, so we add 1 to get the correct month
-  var day = today.getDate();
-
-  // Extract hours, minutes, and seconds from the Date object
-  var hours = today.getHours();
-  var minutes = today.getMinutes();
-  var seconds = today.getSeconds();
-
-  // Format the date as YYYY-MM-DD and time as HH:MM:SS
-  var formattedDate = year + '-' + (month < 10 ? '0' + month : month) + '-' + (day < 10 ? '0' + day : day);
-  var formattedTime = (hours < 10 ? '0' + hours : hours) + ':' + (minutes < 10 ? '0' + minutes : minutes) + ':' + (seconds < 10 ? '0' + seconds : seconds);
   const values = [
     req.body.employeeId,
-    formattedDate,
-    formattedTime,
+    todayDate,
+    currentTime,
   ];
   const query = `INSERT INTO attendence
   (
@@ -1109,7 +1081,6 @@ app.post('/clockin', (req, res) => {
 
   db.query(query, values, (err, results) => {
     if (err) {
-      console.error('Error executing MySQL query:', err);
       res.status(500).json({ error: 'clock in error' });
       return;
     }
@@ -1122,51 +1093,41 @@ app.post('/clockin', (req, res) => {
 app.post('/clockout', checkRequiredFields(["employeeId"]), (req, res) => {
 
   db.query(`SELECT * from attendence WHERE employeeId=${req.body.employeeId} AND 	clockOut="00:00:00"`, (err, results) => {
-    if (results.length == 0) {
-      res.status(400).json({ message: 'employee has not clocked in' });
+    if (err) {
+      res.status(400).json({ message: 'error in doing clockout', err });
+      return;
     }
-    // Create a new Date object which will represent today's date
-    var today = new Date();
-    // Extract hours, minutes, and seconds from the Date object
-    var hours = today.getHours();
-    var minutes = today.getMinutes();
-    var seconds = today.getSeconds();
+    else {
 
-    var formattedTime = (hours < 10 ? '0' + hours : hours) + ':' + (minutes < 10 ? '0' + minutes : minutes) + ':' + (seconds < 10 ? '0' + seconds : seconds);
-
-    const query = `UPDATE attendence 
-                 SET clockOut = '${formattedTime}' 
-                 WHERE employeeId = '${req.body.employeeId}'`;
-    db.query(query, (err, results) => {
-      if (err) {
-        console.error('Error executing MySQL query:', err);
-        res.status(500).json({ error: 'clock-out in error', err });
+      if (results.length == 0) {
+        res.status(400).json({ message: 'employee has not clocked in' });
         return;
       }
-      res.status(200).json({ status: 200, message: 'employee clocked-out' });
-    })
+
+      const query = `UPDATE attendence 
+                 SET clockOut = '${currentTime}' 
+                 WHERE employeeId = '${req.body.employeeId}'`;
+      db.query(query, (err, results) => {
+        if (err) {
+          res.status(500).json({ error: 'clock-out in error', err });
+          return;
+        }
+        res.status(200).json({ status: 200, message: 'employee clocked-out' });
+      })
+    }
   })
 
 })
 app.post('/clockinstatus', checkRequiredFields(["employeeId"]), (req, res) => {
-  // Create a new Date object which will represent today's date
-  var today = new Date();
 
-  // Extract the year, month, and day components from the Date object
-  var year = today.getFullYear();
-  var month = today.getMonth() + 1; // Note: January is 0, so we add 1 to get the correct month
-  var day = today.getDate();
-
-  // Format the date as YYYY-MM-DD and time as HH:MM:SS
-  var formattedDate = year + '-' + (month < 10 ? '0' + month : month) + '-' + (day < 10 ? '0' + day : day);
-
-  db.query(`SELECT * from attendence WHERE employeeId=${req.body.employeeId} AND 	Date="${formattedDate}"`, (err, results) => {
+  db.query(`SELECT * from attendence WHERE employeeId=${req.body.employeeId} AND 	Date="${todayDate}"`, (err, results) => {
     if (results.length == 0) {
       res.status(400).json({ status: 400, message: 'employee has not clocked in' });
+      return;
     }
-    else {
+   
       res.status(200).json({ status: 200, message: 'employee has clocked in' });
-    }
+    
   })
 })
 
@@ -1174,13 +1135,15 @@ app.post('/clockinstatus', checkRequiredFields(["employeeId"]), (req, res) => {
 app.get('/getattendencebyemployeeId/:id', (req, res) => {
   if (isNaN(req.params.id)) {
     res.status(400).json({ message: "please provide appropriate id " });
+    return;
   }
   db.query(`SELECT * FROM attendence WHERE 	employeeId =${req.params.id}`, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'Internal server error', message: err });
-    } else {
+      return;
+    } 
       res.json({ status: 200, message: "attendence for given employee", data: results });
-    }
+    
   });
 })
 
@@ -1188,27 +1151,10 @@ app.get('/getattendencebyemployeeId/:id', (req, res) => {
 
 //12. -------->break start API
 app.post('/breakstart', checkRequiredFields(["employeeId"]), (req, res) => {
-  // Create a new Date object which will represent today's date
-  var today = new Date();
-
-  // Extract the year, month, and day components from the Date object
-  var year = today.getFullYear();
-  var month = today.getMonth() + 1; // Note: January is 0, so we add 1 to get the correct month
-  var day = today.getDate();
-
-  // Extract hours, minutes, and seconds from the Date object
-  var hours = today.getHours();
-  var minutes = today.getMinutes();
-  var seconds = today.getSeconds();
-
-  // Format the date as YYYY-MM-DD and time as HH:MM:SS
-  var formattedDate = year + '-' + (month < 10 ? '0' + month : month) + '-' + (day < 10 ? '0' + day : day);
-  var formattedTime = (hours < 10 ? '0' + hours : hours) + ':' + (minutes < 10 ? '0' + minutes : minutes) + ':' + (seconds < 10 ? '0' + seconds : seconds);
-  console.log("here--------->", req.body);
   const values = [
     req.body.employeeId,
-    formattedDate,
-    formattedTime,
+    todayDate,
+    currentTime,
   ];
   const query = `INSERT INTO breaks
   (
@@ -1222,7 +1168,6 @@ app.post('/breakstart', checkRequiredFields(["employeeId"]), (req, res) => {
 
   db.query(query, values, (err, results) => {
     if (err) {
-      console.error('Error executing MySQL query:', err);
       res.status(500).json({ error: 'break starts error' });
       return;
     }
@@ -1237,24 +1182,16 @@ app.post('/breakend', checkRequiredFields(["employeeId"]), (req, res) => {
   db.query(`SELECT * from breaks WHERE employeeId=${req.body.employeeId} AND 	breakEnd="00:00:00"`, (err, results) => {
     if (results.length == 0) {
       res.status(400).json({ message: 'employee has not started break' });
+      return;
     }
-    // Create a new Date object which will represent today's date
-    var today = new Date();
-    // Extract hours, minutes, and seconds from the Date object
-    var hours = today.getHours();
-    var minutes = today.getMinutes();
-    var seconds = today.getSeconds();
-
-    var formattedTime = (hours < 10 ? '0' + hours : hours) + ':' + (minutes < 10 ? '0' + minutes : minutes) + ':' + (seconds < 10 ? '0' + seconds : seconds);
 
     const query = `UPDATE breaks 
-                 SET breakEnd = '${formattedTime}' 
+                 SET breakEnd = '${currentTime}' 
                  WHERE 
                  employeeId = '${req.body.employeeId}'
                  AND breakEnd = '00:00:00'`;
     db.query(query, (err, results) => {
       if (err) {
-        console.error('Error executing MySQL query:', err);
         res.status(500).json({ error: 'break ends error' });
         return;
       }
@@ -1269,13 +1206,15 @@ app.post('/breakend', checkRequiredFields(["employeeId"]), (req, res) => {
 app.get('/getbreaksbyemployeeId/:id', (req, res) => {
   if (isNaN(req.params.id)) {
     res.status(400).json({ message: "please provide appropriate id " });
+    return
   }
   db.query(`SELECT * FROM breaks WHERE employeeId =${req.params.id}`, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'Internal server error', message: err });
-    } else {
+      return;
+    } 
       res.json({ status: 200, message: "breaks for given employee", data: results });
-    }
+    
   });
 })
 
@@ -1324,11 +1263,9 @@ app.post('/createrequest', requests_docs_upload.single('value'), checkRequiredFi
 
   db.query(query, values, (err, result) => {
     if (err) {
-      console.error('Error inserting data into leaves:', err);
       res.status(500).send({ message: "erro in inserting request", error: err });
       return;
     }
-    console.log('Data inserted into tasks table:', result);
     res.status(200).send({ status: 200, message: 'request created successfully', document: req.body });
   });
 });
@@ -1344,7 +1281,6 @@ app.post('/updaterequest', checkRequiredFields([
 
   db.query(getemployee_query, (err, result) => {
     if (err && result.length == 0) {
-      console.error('Error inserting data into leaves:', err);
       res.status(500).send({ message: "can not find request for given data", error: err });
       return;
     }
@@ -1426,7 +1362,6 @@ app.post('/updaterequest', checkRequiredFields([
             res.json({ status: 200, message: 'request updated successfully', data: combinedData });
           })
           .catch(error => {
-            console.error('Error in updating request: ' + error);
             res.status(500).json({ error: 'Internal server error', message: error });
           });
       }
@@ -1449,7 +1384,6 @@ app.post('/updaterequest', checkRequiredFields([
             res.json({ status: 200, message: 'request updated successfully', data: combinedData });
           })
           .catch(error => {
-            console.error('Error in updating request: ' + error);
             res.status(500).json({ error: 'Internal server error', message: error });
           });
       }
@@ -1478,9 +1412,10 @@ app.get('/getrequests', (req, res) => {
   db.query(query, (err, results) => {
     if (err) {
       res.status(500).json({ status: 400, error: err });
-    } else {
+      return;
+    } 
       res.json({ status: 200, message: "got the requests ", data: results });
-    }
+    
   });
 
 })
@@ -1493,41 +1428,13 @@ app.get('/getrequestbyid/:id', (req, res) => {
   db.query(`SELECT * FROM requests WHERE 	requestId =${req.params.id}`, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'Internal server error', message: err });
-    } else {
+    } 
       res.json({ status: 200, message: "got request successfully", data: results });
-    }
+    
   });
 
 })
 
-//get request by type
-// app.post('/getrequestsbytype', (req, res) => {
-//   console.log(req.body)
-//   db.query(`SELECT * FROM requests WHERE 	type ='${req.body.type} AND status='pending'`, (err, results) => {
-
-//     if (err) {
-//       res.status(500).json({ error: 'Internal server error', message: err });
-//     } else {
-//       if (results.length==0) {
-//         res.json({ status: 500, message: `no requests found for given type` });
-//       }
-//       else{
-//         for (let index = 0; index < results.length; index++) {
-//           const request = results[index];
-//           db.query(`SELECT name FROM employee WHERE employeeId =${request.employeeId}`,(err,result)=>{
-//             if (err) {
-//               request.employeeName="name";
-//             }
-//             console.log(result[0].name)
-//             request.employeeName=result[0].name; 
-//           })
-//         }
-//         res.json({ status: 200, message: `got requests for ${req.body.type} successfully`, data: results });
-//       }
-//     }
-//   });
-
-// })
 app.post('/getrequestsbytype', async (req, res) => {
   console.log(req.body);
   try {
@@ -1573,9 +1480,10 @@ app.get('/getallrequests', (req, res) => {
   db.query(query, (err, results) => {
     if (err) {
       res.status(500).send('Error fetching in data from my sql: ', err);
-    } else {
+      return;
+    } 
       res.json({ status: 200, message: "got requests successfully", data: results });
-    }
+    
   });
 })
 
@@ -1618,11 +1526,9 @@ app.post('/addannouncements', announcements_docs_upload.array('announcements_doc
 
   db.query(query, values, (err, result) => {
     if (err) {
-      console.error('Error inserting data into announcements:', err);
       res.status(500).send({ message: "erro in inserting leave", error: err });
       return;
     }
-    console.log('Data inserted into tasks table:', result);
     res.status(200).send({ status: 200, message: 'insertion success in announcements table', document: req.body });
   });
 });
@@ -1633,39 +1539,28 @@ app.get('/getannouncements', (req, res) => {
   db.query(query, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'can not retrieve announcements' });
-    } else {
-      res.json({ status: 200, message: "got all announcements successfully", data: results });
-    }
+      return;
+    } 
+    res.json({ status: 200, message: "got all announcements successfully", data: results });
   });
 
 })
 //19. get holidays
 app.get('/getholidays', (req, res) => {
+
   //sql query to reteive all the documents of table
-  const query = 'SELECT * FROM `announcements` WHERE type="holiday"'
+  const query = `SELECT * FROM announcements WHERE type="holiday" AND announcement_date>'${todayDate}' `
   db.query(query, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'can not retrieve holidays' });
-    } else {
-      res.json({ status: 200, message: "got all announcements successfully", data: results });
-    }
+      return;
+    } 
+    res.json({ status: 200, message: "got all announcements successfully", data: results });
   });
 })
 
 //get today's absent employees 
 app.get('/getabsents', async (req, res) => {
-  // Create a new Date object which will represent today's date
-  var today = new Date();
-
-  // Extract the year, month, and day components from the Date object
-  var year = today.getFullYear();
-  var month = today.getMonth() + 1; // Note: January is 0, so we add 1 to get the correct month
-  var day = today.getDate();
-
-
-  // Format the date as YYYY-MM-DD and time as HH:MM:SS
-  var formattedDate = year + '-' + (month < 10 ? '0' + month : month) + '-' + (day < 10 ? '0' + day : day);
-
 
   const query = `
   SELECT employee.employeeId, employee.name 
@@ -1673,11 +1568,11 @@ app.get('/getabsents', async (req, res) => {
   LEFT JOIN (
       SELECT employeeId
       FROM attendence
-      WHERE Date = '${formattedDate}'
+      WHERE Date = '${todayDate}'
       UNION 
       SELECT empId
       FROM leaves
-      WHERE status = 'approve' AND startDate = ' ${formattedDate} ' 
+      WHERE status = 'approve' AND startDate = ' ${todayDate} ' 
   ) AS union_result
   ON employee.employeeId = union_result.employeeId 
   WHERE union_result.employeeId IS NULL;
@@ -1686,9 +1581,9 @@ app.get('/getabsents', async (req, res) => {
   db.query(query, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'can not retrieve absents employee' });
-    } else {
-      res.json({ status: 200, message: "got all absent employee sucessfull", data: results });
-    }
+      return;
+    } 
+    res.json({ status: 200, message: "got all absent employee sucessfull", data: results });
   });
 })
 
