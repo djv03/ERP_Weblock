@@ -37,7 +37,8 @@ app.get('/', (req, res) => {
 const checkRequiredFields = require('./utils/validator.js')
 const getDate = require('./utils/getDate.js')
 const { todayDate, currentTime } = getDate()
-const queryPromise = require('./utils/queryPromise.js')
+const queryPromise = require('./utils/queryPromise.js');
+const { resolve } = require('path');
 //------------------------ your API goes here--------------------------
 
 // 1. admin login 
@@ -209,10 +210,6 @@ app.post('/addeducation', employee_educationD, checkRequiredFields([
   "passingYear",
   "percentage",
 ]), (req, res) => {
-  if (!req.files.degreeCertificate) {
-    res.status(400).send({ status: 400, message: "please provide degree certificate" });
-    return
-  }
   const values = [
     req.body.employeeId,
     req.body.degreeName,
@@ -238,6 +235,30 @@ app.post('/addeducation', employee_educationD, checkRequiredFields([
     }
     console.log('Data inserted into employee_education:', result);
     res.status(200).send({ status: 200, message: 'Data inserted into employee_education' });
+  });
+});
+
+//edit education of employee
+app.post('/editeducation', employee_educationD, (req, res) => {
+  console.log(req.body)
+  const query = `UPDATE employee_education 
+  SET 
+  degreeName = '${req.body?.degreeName}',
+  passingYear = '${req.body?.passingYear}',
+  percentage = ${req.body?.percentage},
+  degreeCertificate = '${req.files ? req.files.degreeCertificate[0].filename : ""}'
+  WHERE
+  employeeId = ${req.body.employeeId}`;
+
+
+
+  db.query(query, (err, results) => {
+    if (err) {
+      res.json({ status: 500, message: "Error in updating tasks ", err });
+      return;
+    } else {
+      res.json({ status: 200, message: "employee education updated successfully", data: results });
+    }
   });
 });
 
@@ -297,6 +318,30 @@ app.post('/adddocumets', employee_legalD, checkRequiredFields([
       return;
     }
     res.status(200).send({ status: 200, message: 'insertion sucess in employee_document' });
+  });
+});
+
+//edit documents of employee
+app.post('/editdocuments', employee_legalD, (req, res) => {
+  console.log(req.body)
+  const query = `UPDATE employee_document 
+  SET 
+  passbook = '${req.files ? req.files?.passbook[0].filename : ""}',
+  aadharcard = '${req.files ? req.files?.aadharcard[0].filename : ""}',
+  pancard = '${req.files ? req.files?.pancard[0].filename : ""}',
+  voterId = '${req.files ? req.files?.voterId[0].filename : ""}',
+  drivingLiscence = '${req.files ? req.files?.drivingLiscence[0].filename : ""}'
+  WHERE
+  employeeId = ${req.body.employeeId}`;
+  
+
+  db.query(query, (err, results) => {
+    if (err) {
+      res.json({ status: 500, message: "Error in updating tasks ", err });
+      return;
+    } else {
+      res.json({ status: 200, message: "employee documents updated successfully", data: results });
+    }
   });
 });
 
@@ -379,7 +424,7 @@ app.get('/deleteemployeebyid/:id', (req, res) => {
         return;
       }
     })
-   
+
     res.json({ status: 200, message: " employee deleted successfully", data: results });
 
   })
@@ -511,7 +556,86 @@ app.post('/editproject', project_docs_upload.array('projectDocs'), (req, res) =>
   });
 });
 
-//get projects by project id
+//delete project
+
+app.get('/deleteprojectbyid/:id', (req, res) => {
+  if (isNaN(req.params.id)) {
+    res.status(400).json({ message: "employee id is required" });
+    return;
+  }
+  db.query(`DELETE FROM projects WHERE projectId  = ${req.params.id}`, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'Internal server error', message: err });
+      return;
+    }
+    db.query(`DELETE FROM employeeprojects WHERE projectId = ${req.params.id}`, (err, results) => {
+
+      if (err) {
+        res.status(500).json({ error: 'can not delete project from employeeprojects', message: err });
+        return;
+      }
+    })
+    db.query(`DELETE FROM tasks WHERE projectId = ${req.params.id}`, (err, results) => {
+
+      if (err) {
+        res.status(500).json({ error: 'can not delete project from tasks', message: err });
+        return;
+      }
+    })
+
+    res.json({ status: 200, message: " project deleted successfully", data: results });
+
+  })
+
+})
+
+//delete project
+
+app.get('/deleteprojectbyid/:id', (req, res) => {
+  if (isNaN(req.params.id)) {
+    res.status(400).json({ message: "project id is required" });
+    return;
+  }
+  db.query(`DELETE FROM projects WHERE projectId  = ${req.params.id}`, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'Internal server error', message: err });
+      return;
+    }
+    db.query(`DELETE FROM employeeprojects WHERE projectId = ${req.params.id}`, (err, results) => {
+
+      if (err) {
+        res.status(500).json({ error: 'can not delete project from employeeprojects', message: err });
+        return;
+      }
+    })
+    db.query(`DELETE FROM tasks WHERE projectId = ${req.params.id}`, (err, results) => {
+
+      if (err) {
+        res.status(500).json({ error: 'can not delete project from tasks', message: err });
+        return;
+      }
+    })
+
+    res.json({ status: 200, message: " project deleted successfully", data: results });
+
+  })
+
+})
+
+// delete task by id
+app.get('/deletetaskbyid/:id', (req, res) => {
+  if (isNaN(req.params.id)) {
+    res.status(400).json({ message: "task id is required" });
+    return;
+  }
+  db.query(`DELETE FROM tasks WHERE taskId= ${req.params.id}`, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'Internal server error', message: err });
+      return;
+    }
+    res.json({ status: 200, message: " task deleted successfully", data: results });
+  })
+})
 
 
 // 6. get all projects
@@ -779,6 +903,7 @@ app.post('/edittask', task_docs_upload.array('taskDocs'), (req, res) => {
   console.log(req.body)
   const query = `UPDATE tasks 
   SET 
+  taskDescription = '${req.body?.taskDescription}',
   priority = '${req.body?.priority}',
   endDate = '${req.body?.endDate}',
   assignedTo = ${req.body?.assignedTo},
@@ -863,6 +988,66 @@ app.get('/gettasksbyempid/:id', async (req, res) => {
     res.status(500).json({ error: 'Internal server error', message: error.message });
   }
 });
+
+
+//get task by id
+
+app.get('/gettaskbyid/:id', async (req, res) => {
+  if (isNaN(req.params.id)) {
+    res.status(400).json({ message: "please provide appropriate id " });
+    return; // Add return to exit the function if ID is not valid
+  }
+
+  //firstly we create promise to get all projectsIds from given employeeId (from employeeprojects table)
+  try {
+    const tasks = await new Promise((resolve, reject) => {
+      const query = `SELECT * FROM tasks WHERE taskId = ${req.params.id}`
+      db.query(query, (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results);
+        }
+      });
+    });
+
+    // Map over the results and fetch project details for each project
+    const taskDetails = await Promise.all(tasks.map(async (row) => {
+      try {
+        const employeeDetails = await new Promise((resolve, reject) => {
+          db.query(`SELECT * from employee WHERE employeeId = ${row.assignedTo}`, (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          });
+        });
+        const mentorDetails = await new Promise((resolve, reject) => {
+          db.query(`SELECT * from employee WHERE employeeId = ${row.reportTo}`, (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          });
+        });
+        // Combine project details with the row
+        return { ...row, employeeDetails, mentorDetails };
+      } catch (error) {
+        console.log("Error fetching project details:", error);
+        // If project details fetching fails, return row without details
+        return row;
+      }
+    }));
+
+    res.json({ status: 200, message: "projects for given employeeId", data: taskDetails });
+  }
+  catch (error) {
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
+});
+
 
 // 6. get all tasks
 app.get('/gettasks', (req, res) => {
@@ -1536,17 +1721,47 @@ app.get('/getallrequests', (req, res) => {
 })
 
 //get all pending request
-app.get('/getpendingrequests', (req, res) => {
+app.get('/getpendingrequests', async (req, res) => {
   //sql query to reteive all the documents of table
-  const query = "SELECT * FROM `requests` WHERE status ='pending'";
-  db.query(query, (err, results) => {
-    if (err) {
-      res.status(500).send('Error fetching in data from my sql: ', err);
-      return;
-    }
-    res.json({ status: 200, message: "got requests successfully", data: results });
+  try {
+    const requests = await new Promise((resolve, reject) => {
+      const query = `SELECT * FROM requests WHERE status = 'pending'`;
+      db.query(query, (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results);
+        }
+      });
+    })
 
-  });
+
+    const pendingRequestwithDetails = await Promise.all(requests.map(async (row) => {
+      try {
+        const reuestby = await new Promise((resolve, reject) => {
+          db.query(`SELECT name from employee WHERE employeeId = ${row.employeeId}`, (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result[0]);
+            }
+          });
+        })
+
+        return { ...row, reuestby }
+      } catch (error) {
+        console.log("Error fetching project details:", error);
+        // If project details fetching fails, return row without details
+        return row;
+      }
+    }))
+    res.json({ status: 200, message: "all pending requests", data: pendingRequestwithDetails });
+
+  }
+  catch (error) {
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+
+  }
 })
 
 
