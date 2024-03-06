@@ -39,6 +39,7 @@ const getDate = require('./utils/getDate.js')
 const { todayDate, currentTime } = getDate()
 const queryPromise = require('./utils/queryPromise.js');
 const { resolve } = require('path');
+const { rejects } = require('assert');
 //------------------------ your API goes here--------------------------
 
 // 1. admin login 
@@ -164,7 +165,7 @@ app.post('/createemployee', employee_pics, checkRequiredFields([
 //editable: endDate,	participants,	totalTasks,completedTasks,projectDocs
 app.post('/editemployee', employee_pics, (req, res) => {
   console.log(req.body)
-  console.log(req.files)
+  console.log("file is here--->", req.files)
   const query = `UPDATE employee 
     SET 
       name='${req.body?.name}',
@@ -180,9 +181,9 @@ app.post('/editemployee', employee_pics, (req, res) => {
       date_of_joining='${req.body?.date_of_joining}',
       designation='${req.body?.designation}',
       ExperienceType='${req.body?.ExperienceType}',
-      salarySlip='${req.files.salarySlip[0].filename != undefined ? req.files.salarySlip[0].filename : ''}',
-      experienceLetter='${req.files.experienceLetter[0].filename != undefined ? req.files.experienceLetter[0].filename : ""}',
-      profilePic= '${req.files.profilePic[0].filename != undefined ? req.files.profilePic[0].filename : ""}',
+      salarySlip='${req.files.hasOwnProperty('salarySlip') ? req.files.salarySlip[0].filename : 'nil'}',
+      experienceLetter='${req.files.hasOwnProperty('experienceLetter') ? req.files.experienceLetter[0].filename : ""}',
+      profilePic= '${req.files.hasOwnProperty('profilePic') ? req.files.profilePic[0].filename : ""}',
       salary='${req.body?.salary}'
   WHERE
      employeeId = ${req.body.employeeId}`
@@ -333,7 +334,7 @@ app.post('/editdocuments', employee_legalD, (req, res) => {
   drivingLiscence = '${req.files ? req.files?.drivingLiscence[0].filename : ""}'
   WHERE
   employeeId = ${req.body.employeeId}`;
-  
+
 
   db.query(query, (err, results) => {
     if (err) {
@@ -639,18 +640,68 @@ app.get('/deletetaskbyid/:id', (req, res) => {
 
 
 // 6. get all projects
-app.get('/getprojects', (req, res) => {
-  //sql query to reteive all the documents of table
-  const query = "SELECT * FROM `projects` WHERE 1";
-  db.query(query, (err, results) => {
-    if (err) {
-      res.status(500).send('Error fetching in data from my sql: ', err);
-      return;
-    } else {
-      res.json({ status: 200, message: "got employee successfully", data: results });
-    }
-  });
+app.get('/getallprojects', async (req, res) => {
 
+  //firstly we create promise to get all projectsIds from given employeeId (from employeeprojects table)
+  try {
+    const allProjects = await new Promise((resolve, reject) => {
+      const query = `SELECT * FROM projects WHERE status = "running" `
+      db.query(query, (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results);
+        }
+      });
+    });
+
+    // Map over the results and fetch project details for each project
+    const projectswithDetails = await Promise.all(allProjects.map(async (row) => {
+      try {
+        const allTasks = await new Promise((resolve, reject) => {
+          db.query(`SELECT * from tasks WHERE projectId = ${row.projectId}`, (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          });
+        });
+
+        const allParticiepants = await new Promise((resolve, reject) => {
+          const query = `
+          SELECT name
+          FROM employee
+          WHERE employeeId IN (
+            SELECT employeeId
+            FROM employeeprojects
+            WHERE projectId = ${row.projectId}
+            );
+            `
+          db.query(query, (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          });
+        });
+        console.log(allParticiepants)
+
+        // Combine project details with the row
+        return { ...row, allTasks, allParticiepants };
+      } catch (error) {
+        console.log("Error fetching project details:", error);
+        // If project details fetching fails, return row without details
+        return row;
+      }
+    }));
+
+    res.json({ status: 200, message: "got all the given projects", data: projectswithDetails });
+  }
+  catch (error) {
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
 })
 
 //get individual project by id
@@ -869,6 +920,7 @@ app.post('/addtask', task_docs_upload.array('taskDocs'), checkRequiredFields([
     req.body.taskDescription,
     req.body.projectId,
     req.body.priority,
+    "pending",
     req.body.startDate,
     req.body.endDate,
     req.body.assignedTo,
@@ -880,6 +932,7 @@ app.post('/addtask', task_docs_upload.array('taskDocs'), checkRequiredFields([
     taskDescription,
     projectId,
     priority,
+    status,
     startDate,
     endDate,
     assignedTo,
@@ -888,7 +941,7 @@ app.post('/addtask', task_docs_upload.array('taskDocs'), checkRequiredFields([
     ) 
     VALUES
     (?,?,?,?,
-      ?,?,?,?)`;
+      ?,?,?,?,?)`;
 
   db.query(query, values, (err, result) => {
     if (err) {
@@ -1050,17 +1103,55 @@ app.get('/gettaskbyid/:id', async (req, res) => {
 
 
 // 6. get all tasks
-app.get('/gettasks', (req, res) => {
-  //sql query to reteive all the documents of table
-  const query = "SELECT * FROM `tasks` WHERE 1";
-  db.query(query, (err, results) => {
-    if (err) {
-      res.status(500).send('Error fetching in data from task table: ', err);
-      return;
-    } else {
-      res.json({ status: 200, message: "got tasks successfully", data: results });
-    }
-  });
+app.get('/getalltasks', async (req, res) => {
+  //firstly we create promise to get all projectsIds from given employeeId (from employeeprojects table)
+  try {
+    const pendingTasks = await new Promise((resolve, reject) => {
+      const query = `SELECT * FROM tasks WHERE status='pending'`
+      db.query(query, (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results);
+        }
+      });
+    });
+
+    // Map over the results and fetch project details for each project
+    const pendingTaskswithDetails = await Promise.all(pendingTasks.map(async (row) => {
+      try {
+        const assignedTo = await new Promise((resolve, reject) => {
+          db.query(`SELECT name from employee WHERE employeeId = ${row.assignedTo}`, (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          });
+        });
+        const reportTo = await new Promise((resolve, reject) => {
+          db.query(`SELECT name from employee WHERE employeeId = ${row.reportTo}`, (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          });
+        });
+        // Combine project details with the row
+        return { ...row, assignedTo, reportTo };
+      } catch (error) {
+        console.log("Error fetching project details:", error);
+        // If project details fetching fails, return row without details
+        return row;
+      }
+    }));
+
+    res.json({ status: 200, message: "projects for given employeeId", data: pendingTaskswithDetails });
+  }
+  catch (error) {
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
 })
 
 //get active projects
@@ -1170,7 +1261,7 @@ app.post('/approveleave', checkRequiredFields([
 // 9. get all leaves
 app.get('/getleaves', (req, res) => {
   //sql query to reteive all the documents of table
-  const query = "SELECT * FROM `leaves` WHERE 1";
+  const query = "SELECT * FROM `leaves` WHERE status='approve' ";
   db.query(query, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'can not retrieve leaves' });
@@ -1180,6 +1271,44 @@ app.get('/getleaves', (req, res) => {
 
   });
 
+})
+
+//get leave requests for the admin
+app.get('/getleaverequests', async (req, res) => {
+
+  const leaveRequests = await new Promise((resolve, rejects) => {
+
+    const query = "SELECT * FROM `leaves` WHERE status='pending' ";
+
+    db.query(query, (err, results) => {
+      if (err) {
+        rejects(err)
+      } else {
+        resolve(results)
+      }
+    });
+  })
+
+  const leaveRequestswithNames = await Promise.all(leaveRequests.map(async (row) => {
+    try {
+      const leaveRequestBy = await new Promise((resolve, rejects) => {
+
+        db.query(`SELECT name from employee WHERE employeeId = ${row.empId}`, (err, result) => {
+          if (err) {
+            rejects(err);
+          } else {
+            resolve(result[0]);
+          }
+        });
+      })
+      return { ...row, leaveRequestBy }
+    } catch (error) {
+      console.log("Error fetching project details:", error);
+      // If project details fetching fails, return row without details
+      return row;
+    }
+  }))
+  res.json({ status: 200, message: "projects for given employeeId", data: leaveRequestswithNames });
 })
 
 //leave on today
