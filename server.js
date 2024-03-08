@@ -36,7 +36,7 @@ app.get('/', (req, res) => {
 
 const checkRequiredFields = require('./utils/validator.js')
 const getDate = require('./utils/getDate.js')
-const  convtoIST =require('./utils/convtoIST.js')
+const convtoIST = require('./utils/convtoIST.js')
 const { todayDate, currentTime } = getDate()
 const queryPromise = require('./utils/queryPromise.js');
 const { resolve } = require('path');
@@ -413,6 +413,11 @@ app.get('/getemployeebyid/:id', (req, res) => {
       res.status(500).json({ error: 'Internal server error', message: err });
       return;
     } else {
+      results.forEach((employee) => {
+        employee.date_of_birth = convtoIST(employee.date_of_birth);
+        employee.date_of_joining = convtoIST(employee.date_of_joining);
+      });
+
       res.json({ status: 200, message: "got employee successfully", data: results });
     }
   });
@@ -939,6 +944,11 @@ app.get('/getdueprojects', (req, res) => {
       res.status(500).json({ error: 'Internal server error', message: err });
       return;
     } else {
+      results.map((attend) => {
+        return (
+          attend.Date = convtoIST(attend.Date)
+        )
+      })
       res.json({ status: 200, message: "all due projects", data: results });
     }
   });
@@ -961,6 +971,7 @@ const task_docs_storage = multer.diskStorage({
 const task_docs_upload = multer({ storage: task_docs_storage })
 
 app.post('/addtask', task_docs_upload.array('taskDocs'), checkRequiredFields([
+  "taskName",
   "taskDescription",
   "projectId",
   "priority",
@@ -971,6 +982,7 @@ app.post('/addtask', task_docs_upload.array('taskDocs'), checkRequiredFields([
 ]), (req, res) => {
 
   const values = [
+    req.body.taskName,
     req.body.taskDescription,
     req.body.projectId,
     req.body.priority,
@@ -983,6 +995,7 @@ app.post('/addtask', task_docs_upload.array('taskDocs'), checkRequiredFields([
   ];
 
   const query = `INSERT INTO tasks ( 
+    taskName,
     taskDescription,
     projectId,
     priority,
@@ -995,7 +1008,8 @@ app.post('/addtask', task_docs_upload.array('taskDocs'), checkRequiredFields([
     ) 
     VALUES
     (?,?,?,?,
-      ?,?,?,?,?)`;
+      ?,?,?,?,
+      ?,?)`;
 
   db.query(query, values, (err, result) => {
     if (err) {
@@ -1010,16 +1024,19 @@ app.post('/edittask', task_docs_upload.array('taskDocs'), (req, res) => {
   console.log(req.body)
   const query = `UPDATE tasks 
   SET 
+  taskName = '${req.body?.taskName}',
   taskDescription = '${req.body?.taskDescription}',
+  projectId = '${req.body?. projectId}',
   priority = '${req.body?.priority}',
   status = '${req.body?.status}',
+  startDate = '${req.body?.startDate}',
   endDate = '${req.body?.endDate}',
   assignedTo = ${req.body?.assignedTo},
   reportTo = ${req.body?.reportTo},
   taskDocs = '${req.file ? req.file : JSON.stringify(req?.files.map(file => file.filename))}'
   WHERE
     taskId = ${req.body.taskId}`
-    console.log(req.body)
+  console.log(req.body)
   db.query(query, (err, results) => {
     if (err) {
       res.json({ status: 500, message: "Error in updating tasks ", err });
@@ -1162,7 +1179,7 @@ app.get('/getalltasks', async (req, res) => {
   //firstly we create promise to get all projectsIds from given employeeId (from employeeprojects table)
   try {
     const pendingTasks = await new Promise((resolve, reject) => {
-      const query = `SELECT * FROM tasks WHERE status='pending'`
+      const query = `SELECT * FROM tasks WHERE 1`
       db.query(query, (err, results) => {
         if (err) {
           reject(err);
@@ -1173,7 +1190,7 @@ app.get('/getalltasks', async (req, res) => {
     });
 
     // Map over the results and fetch project details for each project
-    const pendingTaskswithDetails = await Promise.all(pendingTasks.map(async (row) => {
+    const allTaskswithDetails = await Promise.all(pendingTasks.map(async (row) => {
       try {
         const assignedTo = await new Promise((resolve, reject) => {
           db.query(`SELECT name from employee WHERE employeeId = ${row.assignedTo}`, (err, result) => {
@@ -1193,48 +1210,160 @@ app.get('/getalltasks', async (req, res) => {
             }
           });
         });
+        const projectName = await new Promise((resolve, reject) => {
+          db.query(`SELECT ProjectName from projects WHERE projectId = ${row.projectId}`, (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          });
+        });
         // Combine project details with the row
-        return { ...row, assignedTo, reportTo };
+        return { ...row, assignedTo, reportTo,projectName };
       } catch (error) {
         console.log("Error fetching project details:", error);
         // If project details fetching fails, return row without details
         return row;
       }
     }));
-
-    res.json({ status: 200, message: "projects for given employeeId", data: pendingTaskswithDetails });
+    allTaskswithDetails.forEach((task) => {
+      task.startDate = convtoIST(task.startDate);
+      task.endDate = convtoIST(task.endDate);
+    });
+    res.json({ status: 200, message: "projects for given employeeId", data: allTaskswithDetails });
   }
   catch (error) {
     res.status(500).json({ error: 'Internal server error', message: error.message });
   }
 })
 
-//get active projects
-app.get('/getactivetasks', (req, res) => {
+//get active tasks
+app.get('/getactivetasks',async (req, res) => {
+  
+  try {
+    const activeTasks = await new Promise((resolve, reject) => {
+      const query = `SELECT * from tasks WHERE endDate> '${todayDate}'`;
+      db.query(query, (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results);
+        }
+      });
+    });
 
-  const query = `SELECT * from tasks WHERE endDate> '${todayDate}'`;
-  db.query(query, (err, results) => {
-    if (err) {
-      res.status(500).json({ error: 'Internal server error', message: err });
-      return;
-    } else {
-      res.json({ status: 200, message: "all active tasks", data: results });
-    }
-  });
+    // Map over the results and fetch project details for each project
+    const activeTaskswithDetails = await Promise.all(activeTasks.map(async (row) => {
+      try {
+        const assignedTo = await new Promise((resolve, reject) => {
+          db.query(`SELECT name from employee WHERE employeeId = ${row.assignedTo}`, (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          });
+        });
+        const reportTo = await new Promise((resolve, reject) => {
+          db.query(`SELECT name from employee WHERE employeeId = ${row.reportTo}`, (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          });
+        });
+        const projectName = await new Promise((resolve, reject) => {
+          db.query(`SELECT ProjectName from projects WHERE projectId = ${row.projectId}`, (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          });
+        });
+        // Combine project details with the row
+        return { ...row, assignedTo, reportTo,projectName };
+      } catch (error) {
+        console.log("Error fetching project details:", error);
+        // If project details fetching fails, return row without details
+        return row;
+      }
+    }));
+    activeTaskswithDetails.forEach((task) => {
+      task.startDate = convtoIST(task.startDate);
+      task.endDate = convtoIST(task.endDate);
+    });
+    res.json({ status: 200, message: "projects for given employeeId", data: activeTaskswithDetails });
+  }
+  catch (error) {
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
 })
 
-//get active projects
-app.get('/getduetasks', (req, res) => {
+//get due tasks
+app.get('/getduetasks', async(req, res) => {
+  
+  try {
+    const dueTasks = await new Promise((resolve, reject) => {
+      const query = `SELECT * from tasks WHERE endDate<='${todayDate}'`;
+      db.query(query, (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results);
+        }
+      });
+    });
 
-  const query = `SELECT * from tasks WHERE endDate<'${currentTime}'`;
-  db.query(query, (err, results) => {
-    if (err) {
-      res.status(500).json({ error: 'Internal server error', message: err });
-      return;
-    } else {
-      res.json({ status: 200, message: "all due tasks", data: results });
-    }
-  });
+    // Map over the results and fetch project details for each project
+    const dueTaskswithDetails = await Promise.all(dueTasks.map(async (row) => {
+      try {
+        const assignedTo = await new Promise((resolve, reject) => {
+          db.query(`SELECT name from employee WHERE employeeId = ${row.assignedTo}`, (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          });
+        });
+        const reportTo = await new Promise((resolve, reject) => {
+          db.query(`SELECT name from employee WHERE employeeId = ${row.reportTo}`, (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          });
+        });
+        const projectName = await new Promise((resolve, reject) => {
+          db.query(`SELECT ProjectName from projects WHERE projectId = ${row.projectId}`, (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          });
+        });
+        // Combine project details with the row
+        return { ...row, assignedTo, reportTo,projectName };
+      } catch (error) {
+        console.log("Error fetching project details:", error);
+        // If project details fetching fails, return row without details
+        return row;
+      }
+    }));
+    dueTaskswithDetails.forEach((task) => {
+      task.startDate = convtoIST(task.startDate);
+      task.endDate = convtoIST(task.endDate);
+    });
+    res.json({ status: 200, message: "projects for given employeeId", data: dueTaskswithDetails });
+  }
+  catch (error) {
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
 })
 
 
@@ -1561,7 +1690,7 @@ app.get('/getattendencebyemployeeId/:id', (req, res) => {
     }
     results.map((attend) => {
       return (
-        attend.Date= convtoIST(attend.Date)
+        attend.Date = convtoIST(attend.Date)
       )
     })
     res.json({ status: 200, message: "attendence for given employee", data: results });
