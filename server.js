@@ -708,7 +708,6 @@ app.get('/getallprojects', async (req, res) => {
             }
           });
         });
-        console.log(allParticiepants)
 
         // Combine project details with the row
         return { ...row, allTasks, allParticiepants };
@@ -1961,6 +1960,33 @@ app.post('/addannouncements', announcements_docs_upload.array('announcements_doc
     res.status(200).send({ status: 200, message: 'insertion success in announcements table', document: req.body });
   });
 });
+
+//edit announcements by id
+
+app.post('/editannouncements', announcements_docs_upload.array('announcements_docs'), (req, res) => {
+  const query = `UPDATE announcements 
+  SET 
+    type='${req.body?.type}',
+    title='${req.body?.title}',
+    message = '${req.body?.message}',
+    announcement_date = '${req.body?.announcement_date}',
+    announcement_docs = '${JSON.stringify(req?.files.map(file => file.filename))}'
+    WHERE
+    announcementId = ${req.body.announcementId}`;
+
+     
+
+  db.query(query, (err, results) => {
+    if (err) {
+      console.log(err)
+      res.json({ status: 500, message: "Error in updating announcement ", err });
+      return;
+    } else {
+      res.json({ status: 200, message: "announcement updated successfully", data: results });
+    }
+  });
+});
+
 // 18. get all announcements
 app.get('/getannouncements', (req, res) => {
   //sql query to reteive all the documents of table
