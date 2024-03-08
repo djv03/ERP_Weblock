@@ -2000,7 +2000,20 @@ app.get('/getannouncements', (req, res) => {
   });
 
 })
-
+//get announcements 
+app.get('/getannouncementbyid/:id', (req, res) => {
+  if (isNaN(req.params.id)) {
+    res.status(400).json({ message: "announcement id is required" });
+    return;
+  }
+  db.query(`SELECT * FROM announcements WHERE announcementId = ${req.params.id}`, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'Internal server error', message: err });
+      return;
+    }
+    res.json({ status: 200, message: " announcement got successfully", data: results });
+  })
+})
 //delete announcements 
 app.get('/deleteannouncementbyid/:id', (req, res) => {
   if (isNaN(req.params.id)) {
