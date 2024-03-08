@@ -36,6 +36,7 @@ app.get('/', (req, res) => {
 
 const checkRequiredFields = require('./utils/validator.js')
 const getDate = require('./utils/getDate.js')
+const  convtoIST =require('./utils/convtoIST.js')
 const { todayDate, currentTime } = getDate()
 const queryPromise = require('./utils/queryPromise.js');
 const { resolve } = require('path');
@@ -382,7 +383,7 @@ app.post('/employeelogin', checkRequiredFields([
       return;
     }
     if (results && results.length > 0) {
-      res.status(200).json({ status: 200, message: 'employee Login successful', employeeId: results[0].employeeId, name: results[0].name });
+      res.status(200).json({ status: 200, message: 'employee Login successful', employeeId: results[0].employeeId, name: results[0].name, designation: results[0].designation });
     } else {
       res.status(401).json({ error: ' Unauthorized employee access' });
     }
@@ -408,6 +409,38 @@ app.get('/getemployeebyid/:id', (req, res) => {
     return;
   }
   db.query(`SELECT * FROM employee WHERE 	employeeId =${req.params.id}`, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'Internal server error', message: err });
+      return;
+    } else {
+      res.json({ status: 200, message: "got employee successfully", data: results });
+    }
+  });
+
+})
+//get employee education by id
+app.get('/getemployeeeducationbyid/:id', (req, res) => {
+  if (isNaN(req.params.id)) {
+    res.status(400).json({ message: "employee id is required" });
+    return;
+  }
+  db.query(`SELECT * FROM employee_education WHERE 	employeeId =${req.params.id}`, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'Internal server error', message: err });
+      return;
+    } else {
+      res.json({ status: 200, message: "got employee successfully", data: results });
+    }
+  });
+
+})
+//get employee documnets by id
+app.get('/getemployeedocumnetsbyid/:id', (req, res) => {
+  if (isNaN(req.params.id)) {
+    res.status(400).json({ message: "employee id is required" });
+    return;
+  }
+  db.query(`SELECT * FROM employee_document WHERE 	employeeId =${req.params.id}`, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'Internal server error', message: err });
       return;
@@ -979,13 +1012,14 @@ app.post('/edittask', task_docs_upload.array('taskDocs'), (req, res) => {
   SET 
   taskDescription = '${req.body?.taskDescription}',
   priority = '${req.body?.priority}',
+  status = '${req.body?.status}',
   endDate = '${req.body?.endDate}',
   assignedTo = ${req.body?.assignedTo},
   reportTo = ${req.body?.reportTo},
   taskDocs = '${req.file ? req.file : JSON.stringify(req?.files.map(file => file.filename))}'
   WHERE
     taskId = ${req.body.taskId}`
-
+    console.log(req.body)
   db.query(query, (err, results) => {
     if (err) {
       res.json({ status: 500, message: "Error in updating tasks ", err });
@@ -1525,6 +1559,11 @@ app.get('/getattendencebyemployeeId/:id', (req, res) => {
       res.status(500).json({ error: 'Internal server error', message: err });
       return;
     }
+    results.map((attend) => {
+      return (
+        attend.Date= convtoIST(attend.Date)
+      )
+    })
     res.json({ status: 200, message: "attendence for given employee", data: results });
 
   });
@@ -1974,7 +2013,7 @@ app.post('/editannouncements', announcements_docs_upload.array('announcements_do
     WHERE
     announcementId = ${req.body.announcementId}`;
 
-     
+
 
   db.query(query, (err, results) => {
     if (err) {
