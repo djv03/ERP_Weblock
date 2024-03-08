@@ -162,41 +162,60 @@ app.post('/createemployee', employee_pics, checkRequiredFields([
 
 //edit employee details
 
-//editable: endDate,	participants,	totalTasks,completedTasks,projectDocs
-app.post('/editemployee', employee_pics, (req, res) => {
-  console.log(req.body)
-  console.log("file is here--->", req.files)
-  const query = `UPDATE employee 
-    SET 
-      name='${req.body?.name}',
-      email='${req.body?.email}',
-      companyEmail='${req.body?.companyEmail}',
-      password='${req.body?.password}',
-      gender='${req.body?.gender}',
-      marital_status='${req.body?.marital_status}',
-      mobileNumber='${req.body?.mobileNumber}',
-      altmobileNumber='${req.body?.altmobileNumber}',
-      address='${req.body?.address}',
-      date_of_birth='${req.body?.date_of_birth}',
-      date_of_joining='${req.body?.date_of_joining}',
-      designation='${req.body?.designation}',
-      ExperienceType='${req.body?.ExperienceType}',
-      salarySlip='${req.files.hasOwnProperty('salarySlip') ? req.files.salarySlip[0].filename : 'nil'}',
-      experienceLetter='${req.files.hasOwnProperty('experienceLetter') ? req.files.experienceLetter[0].filename : ""}',
-      profilePic= '${req.files.hasOwnProperty('profilePic') ? req.files.profilePic[0].filename : ""}',
-      salary='${req.body?.salary}'
-  WHERE
-     employeeId = ${req.body.employeeId}`
+app.post('/editemployee', employee_pics, checkRequiredFields(["employeeId"]), (req, res) => {
+  console.log(req.body);
+  console.log("file is here--->", req.files);
 
-  db.query(query, (err, results) => {
+  let query = 'UPDATE employee SET ';
+  let values = [];
+
+  const fieldsToUpdate = [
+    'name', 'email', 'companyEmail', 'password', 'gender', 'marital_status',
+    'mobileNumber', 'altmobileNumber', 'address', 'date_of_birth', 'date_of_joining',
+    'designation', 'ExperienceType', 'salary'
+  ];
+
+  // Append file fields if present in req.files
+  if (req.files.salarySlip) {
+    query += `salarySlip = ?, `;
+    values.push(req.files.salarySlip[0].filename);
+  }
+
+  if (req.files.experienceLetter) {
+    query += `experienceLetter = ?, `;
+    values.push(req.files.experienceLetter[0].filename);
+  }
+
+  if (req.files.profilePic) {
+    query += `profilePic = ?, `;
+    values.push(req.files.profilePic[0].filename);
+  }
+
+  // Append other fields present in req.body
+  fieldsToUpdate.forEach(field => {
+    if (req.body[field] !== undefined) {
+      query += `${field} = ?, `;
+      values.push(req.body[field]);
+    }
+  });
+
+  // Remove the trailing comma and space from the query
+  query = query.slice(0, -2);
+  console.log(query)
+
+  query += ' WHERE employeeId = ?';
+  values.push(req.body.employeeId);
+
+  db.query(query, values, (err, results) => {
     if (err) {
-      res.json({ status: 500, message: "Error in updating employee Data ", err });
-      return
+      console.error("Error in updating employee data:", err);
+      return res.status(500).json({ message: "Error in updating employee data", error: err });
     } else {
-      res.json({ status: 200, message: "employee details updated successfully", data: results });
+      return res.status(200).json({ message: "Employee details updated successfully", data: results });
     }
   });
 });
+
 
 
 // 3. add education details of employee
@@ -456,7 +475,7 @@ app.post('/addproject', project_docs_upload.array('projectDocs'), checkRequiredF
   "startDate",
   "endDate",
   "participants",
-  "totalTasks"
+  "totalTasks",
 ]), (req, res) => {
 
   const values = [
@@ -464,6 +483,7 @@ app.post('/addproject', project_docs_upload.array('projectDocs'), checkRequiredF
     req.body.projectDescription,
     req.body.startDate,
     req.body.endDate,
+    "running",
     req.body.participants,
     req.body.totalTasks,
     !req.files ? "" : JSON.stringify(req.files.map(file => file.filename))
@@ -474,13 +494,14 @@ app.post('/addproject', project_docs_upload.array('projectDocs'), checkRequiredF
     projectDescription,
     startDate,
     endDate,
+    status,
     participants,
     totalTasks,
     projectDocs
     ) 
     VALUES
     (?,?,?,?,
-      ?,?,?)`;
+      ?,?,?,?)`;
 
   db.query(query, values, (err, result) => {
     if (err) {
@@ -534,12 +555,13 @@ app.post('/addproject', project_docs_upload.array('projectDocs'), checkRequiredF
 
 //editable: endDate,	participants,	totalTasks,completedTasks,projectDocs
 app.post('/editproject', project_docs_upload.array('projectDocs'), (req, res) => {
-  console.log(req.body)
   const query = `UPDATE projects 
   SET 
     ProjectName='${req.body?.ProjectName}',
     projectDescription='${req.body?.projectDescription}',
+    startDate = '${req.body?.startDate}',
      endDate = '${req.body?.endDate}',
+     status = '${req.body?.status}',
      participants = '${req.body?.participants}',
      totalTasks = ${req.body?.totalTasks},
      projectDocs = '${JSON.stringify(req?.files.map(file => file.filename))}'
@@ -645,7 +667,7 @@ app.get('/getallprojects', async (req, res) => {
   //firstly we create promise to get all projectsIds from given employeeId (from employeeprojects table)
   try {
     const allProjects = await new Promise((resolve, reject) => {
-      const query = `SELECT * FROM projects WHERE status = "running" `
+      const query = `SELECT * FROM projects WHERE status = "running" OR status = "delayed" `
       db.query(query, (err, results) => {
         if (err) {
           reject(err);
@@ -1950,6 +1972,24 @@ app.get('/getannouncements', (req, res) => {
     }
     res.json({ status: 200, message: "got all announcements successfully", data: results });
   });
+
+})
+
+//delete announcements 
+app.get('/deleteannouncementbyid/:id', (req, res) => {
+  if (isNaN(req.params.id)) {
+    res.status(400).json({ message: "announcement id is required" });
+    return;
+  }
+  db.query(`DELETE FROM announcements WHERE announcementId = ${req.params.id}`, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: 'Internal server error', message: err });
+      return;
+    }
+
+    res.json({ status: 200, message: " announcement deleted successfully", data: results });
+
+  })
 
 })
 //19. get holidays
