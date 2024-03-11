@@ -652,32 +652,18 @@ app.get('/deleteprojectbyid/:id', (req, res) => {
 
 //delete project
 
-app.get('/deleteprojectbyid/:id', (req, res) => {
+app.get('/deletetaskbyid/:id', (req, res) => {
   if (isNaN(req.params.id)) {
-    res.status(400).json({ message: "project id is required" });
+    res.status(400).json({ message: "taskId is required" });
     return;
   }
-  db.query(`DELETE FROM projects WHERE projectId  = ${req.params.id}`, (err, results) => {
+  db.query(`DELETE FROM tasks WHERE taskId= ${req.params.id}`, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'Internal server error', message: err });
       return;
     }
-    db.query(`DELETE FROM employeeprojects WHERE projectId = ${req.params.id}`, (err, results) => {
 
-      if (err) {
-        res.status(500).json({ error: 'can not delete project from employeeprojects', message: err });
-        return;
-      }
-    })
-    db.query(`DELETE FROM tasks WHERE projectId = ${req.params.id}`, (err, results) => {
-
-      if (err) {
-        res.status(500).json({ error: 'can not delete project from tasks', message: err });
-        return;
-      }
-    })
-
-    res.json({ status: 200, message: " project deleted successfully", data: results });
+    res.json({ status: 200, message: " Task deleted successfully", data: results });
 
   })
 
