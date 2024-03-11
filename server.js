@@ -39,6 +39,7 @@ const getDate = require('./utils/getDate.js')
 const convtoIST = require('./utils/convtoIST.js')
 const { todayDate, currentTime } = getDate()
 const queryPromise = require('./utils/queryPromise.js');
+const getDateofMonth = require('./utils/getdateofmonths.js');
 const { resolve } = require('path');
 const { rejects } = require('assert');
 //------------------------ your API goes here--------------------------
@@ -1012,7 +1013,7 @@ app.post('/edittask', task_docs_upload.array('taskDocs'), (req, res) => {
   SET 
   taskName = '${req.body?.taskName}',
   taskDescription = '${req.body?.taskDescription}',
-  projectId = '${req.body?. projectId}',
+  projectId = '${req.body?.projectId}',
   priority = '${req.body?.priority}',
   status = '${req.body?.status}',
   startDate = '${req.body?.startDate}',
@@ -1206,7 +1207,7 @@ app.get('/getalltasks', async (req, res) => {
           });
         });
         // Combine project details with the row
-        return { ...row, assignedTo, reportTo,projectName };
+        return { ...row, assignedTo, reportTo, projectName };
       } catch (error) {
         console.log("Error fetching project details:", error);
         // If project details fetching fails, return row without details
@@ -1225,8 +1226,8 @@ app.get('/getalltasks', async (req, res) => {
 })
 
 //get active tasks
-app.get('/getactivetasks',async (req, res) => {
-  
+app.get('/getactivetasks', async (req, res) => {
+
   try {
     const activeTasks = await new Promise((resolve, reject) => {
       const query = `SELECT * from tasks WHERE endDate> '${todayDate}'`;
@@ -1270,7 +1271,7 @@ app.get('/getactivetasks',async (req, res) => {
           });
         });
         // Combine project details with the row
-        return { ...row, assignedTo, reportTo,projectName };
+        return { ...row, assignedTo, reportTo, projectName };
       } catch (error) {
         console.log("Error fetching project details:", error);
         // If project details fetching fails, return row without details
@@ -1289,8 +1290,8 @@ app.get('/getactivetasks',async (req, res) => {
 })
 
 //get due tasks
-app.get('/getduetasks', async(req, res) => {
-  
+app.get('/getduetasks', async (req, res) => {
+
   try {
     const dueTasks = await new Promise((resolve, reject) => {
       const query = `SELECT * from tasks WHERE endDate<='${todayDate}'`;
@@ -1334,7 +1335,7 @@ app.get('/getduetasks', async(req, res) => {
           });
         });
         // Combine project details with the row
-        return { ...row, assignedTo, reportTo,projectName };
+        return { ...row, assignedTo, reportTo, projectName };
       } catch (error) {
         console.log("Error fetching project details:", error);
         // If project details fetching fails, return row without details
@@ -1592,6 +1593,119 @@ app.get('/getleavesbyempid/:id', (req, res) => {
 
 //---------------------  all Clock APIs starts here-----------------------------
 
+// all over attendence module
+
+app.get('/getattendencebyempid/:id', async (req, res) => {
+
+  const resData = getDateofMonth();
+  // console.log(resData)
+  const attendenceData = await new Promise((resolve, reject) => {
+    const query = `SELECT *
+    FROM attendence
+    WHERE Date >= DATE_FORMAT(NOW(), '%Y-%m-01')
+    AND Date <= LAST_DAY(NOW())
+    AND employeeId= ${req.params.id} `
+    db.query(query, (err, results) => {
+      if (err) {
+        reject(err)
+      }
+      else {
+        resolve(results);
+      }
+    })
+  })
+  attendenceData.forEach((attendence) => {
+    attendence.Date = convtoIST(attendence.Date);
+  });
+
+
+  const HolidayDates = await new Promise((resolve, reject) => {
+    const query = `SELECT *
+    FROM holidays
+    WHERE holidayDate >= DATE_FORMAT(NOW(), '%Y-%m-01')
+    AND holidayDate <= LAST_DAY(NOW())
+    `
+
+    db.query(query, (err, results) => {
+      if (err) {
+        reject(err)
+      }
+      else {
+        resolve(results);
+      }
+    })
+  })
+  HolidayDates.forEach((holiday) => {
+    holiday.holidayDate = convtoIST(holiday.holidayDate);
+  });
+
+
+  const leaveDates = await new Promise((resolve, reject) => {
+    const query = `SELECT *
+    FROM leaves
+    WHERE startDate >= DATE_FORMAT(NOW(), '%Y-%m-01')
+    AND startDate <= LAST_DAY(NOW())
+    AND status="approve"
+    AND empId=${req.params.id}
+    `
+
+    db.query(query, (err, results) => {
+      if (err) {
+        reject(err)
+      }
+      else {
+        resolve(results);
+      }
+    })
+  })
+
+  leaveDates.forEach((leave) => {
+    leave.startDate = convtoIST(leave.startDate);
+    leave.endDate = convtoIST(leave.endDate);
+  });
+
+  for (let i = 0; i < resData.length; i++) {
+    const day = resData[i];
+    day.attendenceStatus = "absent"
+
+    for (let j = 0; j < attendenceData.length; j++) {
+      const attendenceofDay = attendenceData[j];
+      const attendenceDateAsString = attendenceofDay.Date.toISOString().split('T')[0]; // Convert Date object to string in "YYYY-MM-DD" format
+      if (day.date == attendenceDateAsString) {
+        day.attendenceStatus = "present"
+        day.attendeDetails=attendenceofDay
+      }
+    }
+
+    for (let j = 0; j < HolidayDates.length; j++) {
+      const holiday = HolidayDates[j];
+      const holidayDateAsString = holiday.holidayDate.toISOString().split('T')[0];
+      if (day.date == holidayDateAsString) {
+        day.attendenceStatus = "Holiday"
+      }
+    }
+
+    for (let j = 0; j < leaveDates.length; j++) {
+      const leave = leaveDates[j];
+      const leavestartDateAsString = leave.startDate.toISOString().split('T')[0];
+      const leavesendDateAsString = leave.endDate.toISOString().split('T')[0];
+      if (day.date <= leavesendDateAsString && day.date >= leavestartDateAsString) {
+        console.log(leavesendDateAsString)
+        day.attendenceStatus = "Leave"
+      }
+    }
+
+    if (day.dayName === "Sunday") {
+      day.attendenceStatus = "Weekend"
+    }
+
+  }
+
+
+  res.status(200).json({ status: 200, message: 'got data', data: resData });
+
+
+})
 
 //10. -------->clock-in API
 app.post('/clockin', (req, res) => {
