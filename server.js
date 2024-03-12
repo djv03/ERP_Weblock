@@ -13,13 +13,14 @@ app.use(cors());
 app.use(express.static('public'))
 app.use(bodyParser.urlencoded({ extended: true }));
 
+const db = require('./config/db.js')
 // sql db credentials
-const db = mysql.createConnection({
-  host: 'localhost',
-  user: 'root',
-  password: '',
-  database: 'erp_weblock'
-});
+// const db = mysql.createConnection({
+//   host: 'localhost',
+//   user: 'root',
+//   password: '',
+//   database: 'erp_weblock'
+// });
 
 //sql connection goes here
 db.connect((err) => {
@@ -27,9 +28,8 @@ db.connect((err) => {
     console.error('MySQL connection failed: ' + err.stack);
     return;
   }
-  console.log(`Connected to MySQL sql database erp_weblock`);
+  console.log(`Connected to MySQL sql database erp_weblock on port ${port}`);
 });
-
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/index.html');
 });
@@ -1673,7 +1673,7 @@ app.get('/getattendencebyempid/:id', async (req, res) => {
       const attendenceDateAsString = attendenceofDay.Date.toISOString().split('T')[0]; // Convert Date object to string in "YYYY-MM-DD" format
       if (day.date == attendenceDateAsString) {
         day.attendenceStatus = "present"
-        day.attendeDetails=attendenceofDay
+        day.attendeDetails = attendenceofDay
       }
     }
 
@@ -1690,7 +1690,6 @@ app.get('/getattendencebyempid/:id', async (req, res) => {
       const leavestartDateAsString = leave.startDate.toISOString().split('T')[0];
       const leavesendDateAsString = leave.endDate.toISOString().split('T')[0];
       if (day.date <= leavesendDateAsString && day.date >= leavestartDateAsString) {
-        console.log(leavesendDateAsString)
         day.attendenceStatus = "Leave"
       }
     }
@@ -1777,26 +1776,6 @@ app.post('/clockinstatus', checkRequiredFields(["employeeId"]), (req, res) => {
   })
 })
 
-// get attendence by employeeId
-app.get('/getattendencebyemployeeId/:id', (req, res) => {
-  if (isNaN(req.params.id)) {
-    res.status(400).json({ message: "please provide appropriate id " });
-    return;
-  }
-  db.query(`SELECT * FROM attendence WHERE 	employeeId =${req.params.id}`, (err, results) => {
-    if (err) {
-      res.status(500).json({ error: 'Internal server error', message: err });
-      return;
-    }
-    results.map((attend) => {
-      return (
-        attend.Date = convtoIST(attend.Date)
-      )
-    })
-    res.json({ status: 200, message: "attendence for given employee", data: results });
-
-  });
-})
 
 
 
@@ -2341,6 +2320,11 @@ app.get('/getabsents', async (req, res) => {
   });
 })
 
+const {createPolicy,getAllPolicies,updatePolicy,deletePolicy}= require('./controllers/adminControls/policies.js') 
+app.post('/createpolicy',createPolicy)
+app.get('/getallpolicies',getAllPolicies)
+app.post('/updatepolicy/',updatePolicy)
+app.get('/deletepolicy/:id',deletePolicy)
 
 //listening app
 app.listen(port, () => {
