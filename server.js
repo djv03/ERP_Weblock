@@ -100,8 +100,7 @@ app.post('/createemployee', employee_pics, checkRequiredFields([
   "designation",
   "ExperienceType",
   "salary",
-]), (req, res) => {
-  console.log(req.files)
+]), async (req, res) => {
   if (!req.files.profilePic) {
     res.status(400).send({ status: 200, message: 'provide profile pic' });
     return
@@ -152,14 +151,32 @@ app.post('/createemployee', employee_pics, checkRequiredFields([
       ?, ?, ?, ?,
       ? )`;
 
-  db.query(query, values, (err, result) => {
-    if (err) {
-      console.error('Error inserting data into MySQL:', err);
-      res.status(500).send('Error in creating employee');
-      return;
-    }
-    res.status(200).send({ status: 200, message: 'employee created successfully' });
+  const createemployee = await new Promise((resolve, reject) => {
+    db.query(query, values, (err, result) => {
+      if (err) {
+        reject(err)
+        
+        return;
+      }
+      else {
+        resolve(result)
+      }
+    })
   });
+  const lastId = await new Promise((resolve, reject) => {
+    db.query('SELECT LAST_INSERT_ID()', (err, result) => {
+      if (err) {
+        reject(err)
+        return res.status(500).json({ message: "Error in creating employe", error: err });
+      }
+      else {
+        resolve(result[0].LAST_INSERT_ID)
+      }
+    })
+  })
+  console.log(lastId)
+  createemployee.newemployeeId = lastId;
+  res.status(200).send({ status: 200, message: 'employee created successfully', data: createemployee });
 });
 
 //edit employee details
@@ -398,6 +415,10 @@ app.get('/getusers', (req, res) => {
       res.status(500).json({ error: 'Internal server error' });
       return;
     } else {
+      results.forEach((employee) => {
+        employee.date_of_birth = convtoIST(employee.date_of_birth);
+        employee.date_of_joining = convtoIST(employee.date_of_joining);
+      })
       res.json({ status: 200, message: "got employees successfully", data: results });
     }
   });
@@ -1353,6 +1374,9 @@ app.get('/getduetasks', async (req, res) => {
   }
 })
 
+//get task by projectId
+const {getTasksbyprojectId}= require('./controllers/commonControls/tasks.js')
+app.get('/gettasksbyprojectid/:id',getTasksbyprojectId)
 
 //---------------------> leaves apis starts here <----------------------
 // 7. apply leave API
@@ -2291,6 +2315,9 @@ app.get('/getholidays', (req, res) => {
     res.json({ status: 200, message: "got all announcements successfully", data: results });
   });
 })
+//get today's present employees 
+const {presentToday}=require('./controllers/adminControls/attendence.js')
+app.post('/presenttoday',presentToday)
 
 //get today's absent employees 
 app.get('/getabsents', async (req, res) => {
@@ -2320,11 +2347,11 @@ app.get('/getabsents', async (req, res) => {
   });
 })
 
-const {createPolicy,getAllPolicies,updatePolicy,deletePolicy}= require('./controllers/adminControls/policies.js') 
-app.post('/createpolicy',createPolicy)
-app.get('/getallpolicies',getAllPolicies)
-app.post('/updatepolicy/',updatePolicy)
-app.get('/deletepolicy/:id',deletePolicy)
+const { createPolicy, getAllPolicies, updatePolicy, deletePolicy } = require('./controllers/adminControls/policies.js')
+app.post('/createpolicy', createPolicy)
+app.get('/getallpolicies', getAllPolicies)
+app.post('/updatepolicy/', updatePolicy)
+app.get('/deletepolicy/:id', deletePolicy)
 
 //listening app
 app.listen(port, () => {

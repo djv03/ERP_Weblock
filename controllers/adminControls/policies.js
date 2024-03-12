@@ -1,22 +1,17 @@
-// const multer= require('multer')
+const express = require('express');
+const app = express();
+app.use(express.urlencoded({ extended: true }));
+// This is required to handle urlencoded data
+app.use(express.json()); 
+
 const db = require('../../config/db')
 
-const express = require('express');
-const mysql = require('mysql');
-const bodyParser = require('body-parser');
-const app = express();
-const port = 8080;
-const cors = require('cors');
-
-app.use(bodyParser.json());
-app.use(cors());
-app.use(express.static('public'))
-app.use(bodyParser.urlencoded({ extended: true }));
 
 const checkRequiredFields = require('../../utils/validator')
 
 //create policies
 const createPolicy = async (req, res) => {
+    console.log(req.body)
     const query = `
   INSERT INTO policies(
       policyName,
