@@ -2272,6 +2272,24 @@ app.post('/addannouncements', announcements_docs_upload.array('announcements_doc
   });
 });
 
+
+const holiday_docs_storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, './public/holiday_docs');
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + '_' + file.originalname);
+  }
+});
+const holiday_docs_upload = multer({ storage: holiday_docs_storage })
+
+const {createHoliday,getAllHolidays,getHolidaysbyId,updateHoliday,deleteHoliday}= require('./controllers/adminControls/holidays.js')
+app.post('/createholiday',holiday_docs_upload.array('holidayDocs'),createHoliday)
+app.get('/getallholidays',getAllHolidays)
+app.get('/getholidaysbyid/:id',getHolidaysbyId)
+app.post('/updateholiday',holiday_docs_upload.array('holidayDocs'),updateHoliday)
+app.get('/deleteholiday/:id',deleteHoliday)
+
 //edit announcements by id
 
 app.post('/editannouncements', announcements_docs_upload.array('announcements_docs'), (req, res) => {
@@ -2387,10 +2405,11 @@ app.get('/getabsents', async (req, res) => {
   });
 })
 
-const { createPolicy, getAllPolicies, updatePolicy, deletePolicy } = require('./controllers/adminControls/policies.js');
+const { createPolicy, getAllPolicies, updatePolicy, deletePolicy ,getAllPoliciesbyId} = require('./controllers/adminControls/policies.js');
 const { clearScreenDown } = require('readline');
 app.post('/createpolicy', createPolicy)
 app.get('/getallpolicies', getAllPolicies)
+app.get('/getallpoliciesbyid/:id', getAllPoliciesbyId)
 app.post('/updatepolicy/', updatePolicy)
 app.get('/deletepolicy/:id', deletePolicy)
 

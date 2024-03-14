@@ -42,6 +42,17 @@ const getAllPolicies = async (req, res) => {
         }
     })
 }
+const getAllPoliciesbyId = async (req, res) => {
+    db.query(`SELECT * FROM policies WHERE policyId=${req.params.id}`, (err, results) => {
+        if (err) {
+            res.status(500).json({ err: 'Internal Server Error', err: err });
+            return;
+        }
+        else {
+            res.status(200).json({ status: 200, message: 'data for given policy Id', data: results });
+        }
+    })
+}
 const updatePolicy = async (req, res) => {
     console.log(req.body)
     checkRequiredFields([req.body.policyId]);
@@ -75,4 +86,4 @@ const deletePolicy = async (req, res) => {
     })
 }
 
-module.exports = { createPolicy, getAllPolicies, updatePolicy,deletePolicy }
+module.exports = { createPolicy, getAllPolicies, updatePolicy,deletePolicy,getAllPoliciesbyId }
