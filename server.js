@@ -164,13 +164,13 @@ app.post('/createemployee', employee_pics, checkRequiredFields([
     })
   });
   const lastId = await new Promise((resolve, reject) => {
-    db.query('SELECT LAST_INSERT_ID()', (err, result) => {
+    db.query('SELECT LAST_INSERT_ID();', (err, result) => {
       if (err) {
         reject(err)
         return res.status(500).json({ message: "Error in creating employe", error: err });
       }
       else {
-        resolve(result[0].LAST_INSERT_ID)
+        resolve(result[0])
       }
     })
   })
@@ -1462,6 +1462,10 @@ app.get('/getleaves', (req, res) => {
       res.status(500).json({ error: 'can not retrieve leaves' });
       return;
     }
+    results.forEach((row)=> {
+      row.startDate= convtoIST(row.startDate)
+      row.endDate= convtoIST(row.endDate)
+    })
     res.json({ status: 200, message: "got all leaves successfully", data: results });
 
   });
@@ -1503,6 +1507,11 @@ app.get('/getleaverequests', async (req, res) => {
       return row;
     }
   }))
+  leaveRequestswithNames.forEach((row)=> {
+    console.log(row.startDate)
+    row.startDate= convtoIST(row.startDate)
+    row.endDate= convtoIST(row.endDate)
+  })
   res.json({ status: 200, message: "projects for given employeeId", data: leaveRequestswithNames });
 })
 
@@ -1542,9 +1551,15 @@ app.get('/getleavesoftoday', async (req, res) => {
       // If project details fetching fails, return row without details
       return row;
     }
-
-
   }));
+  leavesWithDetails.forEach((row)=> {
+      console.log(row.startDate)
+      row.startDate= convtoIST(row.startDate)
+      row.endDate= convtoIST(row.endDate)
+    })
+
+
+  
 
   res.json({ status: 200, message: "projects for given employeeId", data: leavesWithDetails });
 })
@@ -1569,6 +1584,10 @@ app.get('/getbirthdays', (req, res) => {
       return;
     }
 
+    results.forEach((row) => {
+      row.date_of_birth = convtoIST(row.date_of_birth);
+    });
+
     res.json({ status: 200, message: "got birthdays successfully", data: results });
 
   })
@@ -1590,11 +1609,27 @@ app.get('/getanniversaries', (req, res) => {
   db.query(query, (err, results) => {
 
     if (err) {
-      res.status(500).json({ error: 'can not retrieve leaves of today' });
+      res.status(500).json({ error: 'can not retrieve anniversary' });
       return;
     }
-
-    res.json({ status: 200, message: "got birthdays successfully", data: results });
+    
+    results.forEach(row=> row.date_of_joining=convtoIST(row.date_of_joining))
+    const filteredResults = results.filter(row => {
+      const joiningDate = new Date(row.date_of_joining); // Convert to Date object
+      const todayDate = new Date(); // Get current date
+    
+      // Check if joining date is not today
+      if (
+        joiningDate.getFullYear() === todayDate.getFullYear() &&
+        joiningDate.getMonth() === todayDate.getMonth() &&
+        joiningDate.getDate() === todayDate.getDate()
+      ) {
+        return false; // Exclude if joining date is today
+      }
+    
+      return true; // Include all other dates
+    });
+    res.json({ status: 200, message: "got anniversaries successfully", data: filteredResults });
 
   })
 })
@@ -1610,6 +1645,11 @@ app.get('/getleavesbyempid/:id', (req, res) => {
       res.status(500).json({ error: 'Internal server error', message: err });
       return;
     } else {
+      results.forEach((row)=> {
+        console.log(row.startDate)
+        row.startDate= convtoIST(row.startDate)
+        row.endDate= convtoIST(row.endDate)
+      })
       res.json({ status: 200, message: "got all leaves of employee sucessfully", data: results });
     }
   });
@@ -2347,7 +2387,8 @@ app.get('/getabsents', async (req, res) => {
   });
 })
 
-const { createPolicy, getAllPolicies, updatePolicy, deletePolicy } = require('./controllers/adminControls/policies.js')
+const { createPolicy, getAllPolicies, updatePolicy, deletePolicy } = require('./controllers/adminControls/policies.js');
+const { clearScreenDown } = require('readline');
 app.post('/createpolicy', createPolicy)
 app.get('/getallpolicies', getAllPolicies)
 app.post('/updatepolicy/', updatePolicy)
