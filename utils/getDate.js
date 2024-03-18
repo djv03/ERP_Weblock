@@ -1,7 +1,7 @@
-const getDate=()=>{
+const getDate=(today)=>{
 
     // Create a new Date object which will represent today's date
-    var today = new Date();
+    // var today = new Date();
     
     // Extract the year, month, and day components from the Date object
     var year = today.getFullYear();

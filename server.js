@@ -14,15 +14,7 @@ app.use(express.static('public'))
 app.use(bodyParser.urlencoded({ extended: true }));
 
 const db = require('./config/db.js')
-// sql db credentials
-// const db = mysql.createConnection({
-//   host: 'localhost',
-//   user: 'root',
-//   password: '',
-//   database: 'erp_weblock'
-// });
 
-//sql connection goes here
 db.connect((err) => {
   if (err) {
     console.error('MySQL connection failed: ' + err.stack);
@@ -35,13 +27,9 @@ app.get('/', (req, res) => {
 });
 
 const checkRequiredFields = require('./utils/validator.js')
-const getDate = require('./utils/getDate.js')
 const convtoIST = require('./utils/convtoIST.js')
-const { todayDate, currentTime } = getDate()
+const getDate= require('./utils/getDate.js')
 const queryPromise = require('./utils/queryPromise.js');
-const getDateofMonth = require('./utils/getdateofmonths.js');
-const { resolve } = require('path');
-const { rejects } = require('assert');
 //------------------------ your API goes here--------------------------
 
 // 1. admin login 
@@ -931,7 +919,8 @@ app.get('/getemployeebyprojectid/:id', (req, res) => {
 
 //get active projects
 app.get('/getactiveprojects', (req, res) => {
-
+  const today = new Date(); 
+  const {todayDate}=getDate(today)
   const query = `SELECT * from projects WHERE endDate> '${todayDate}'`;
   db.query(query, (err, results) => {
     if (err) {
@@ -945,6 +934,8 @@ app.get('/getactiveprojects', (req, res) => {
 
 //get active projects
 app.get('/getdueprojects', (req, res) => {
+  const today = new Date(); 
+  const {todayDate}=getDate(today)
 
   const query = `SELECT * from projects WHERE endDate<'${todayDate}'`;
   db.query(query, (err, results) => {
@@ -1286,6 +1277,8 @@ app.get('/getalltasks', async (req, res) => {
 
 //get active tasks
 app.get('/getactivetasks', async (req, res) => {
+  const today = new Date(); 
+  const {todayDate}=getDate(today)
 
   try {
     const activeTasks = await new Promise((resolve, reject) => {
@@ -1350,7 +1343,8 @@ app.get('/getactivetasks', async (req, res) => {
 
 //get due tasks
 app.get('/getduetasks', async (req, res) => {
-
+  const today = new Date(); 
+  const {todayDate}=getDate(today)
   try {
     const dueTasks = await new Promise((resolve, reject) => {
       const query = `SELECT * from tasks WHERE endDate<='${todayDate}'`;
@@ -1556,6 +1550,8 @@ app.get('/getleaverequests', async (req, res) => {
 //leave on today
 
 app.get('/getleavesoftoday', async (req, res) => {
+  const today = new Date(); 
+  const {todayDate}=getDate(today)
 
   const todaysleaves = await new Promise((resolve, reject) => {
     const query = `SELECT * FROM leaves WHERE startDate>='${todayDate}'`
@@ -1696,130 +1692,14 @@ app.get('/getleavesbyempid/:id', (req, res) => {
 //---------------------  all Clock APIs starts here-----------------------------
 
 // all over attendence module
-
-app.get('/getattendencebyempid/:id', async (req, res) => {
-
-  const resData = getDateofMonth();
-  // console.log(resData)
-  const attendenceData = await new Promise((resolve, reject) => {
-    const query = `SELECT *
-    FROM attendence
-    WHERE Date >= DATE_FORMAT(NOW(), '%Y-%m-01')
-    AND Date <= LAST_DAY(NOW())
-    AND employeeId= ${req.params.id} `
-    db.query(query, (err, results) => {
-      if (err) {
-        reject(err)
-      }
-      else {
-        resolve(results);
-      }
-    })
-  })
-  attendenceData.forEach((attendence) => {
-    attendence.Date = convtoIST(attendence.Date);
-  });
-
-
-  const HolidayDates = await new Promise((resolve, reject) => {
-    const query = `SELECT *
-    FROM holidays
-    WHERE holidayDate >= DATE_FORMAT(NOW(), '%Y-%m-01')
-    AND holidayDate <= LAST_DAY(NOW())
-    `
-
-    db.query(query, (err, results) => {
-      if (err) {
-        reject(err)
-      }
-      else {
-        resolve(results);
-      }
-    })
-  })
-  HolidayDates.forEach((holiday) => {
-    holiday.holidayDate = convtoIST(holiday.holidayDate);
-  });
-
-
-  const leaveDates = await new Promise((resolve, reject) => {
-    const query = `SELECT *
-    FROM leaves
-    WHERE startDate >= DATE_FORMAT(NOW(), '%Y-%m-01')
-    AND startDate <= LAST_DAY(NOW())
-    AND status="approve"
-    AND empId=${req.params.id}
-    `
-
-    db.query(query, (err, results) => {
-      if (err) {
-        reject(err)
-      }
-      else {
-        resolve(results);
-      }
-    })
-  })
-
-  leaveDates.forEach((leave) => {
-    leave.startDate = convtoIST(leave.startDate);
-    leave.endDate = convtoIST(leave.endDate);
-  });
-
-  for (let i = 0; i < resData.length; i++) {
-    const day = resData[i];
-    day.attendenceStatus = "absent"
-
-    //checking sunday
-    if (day.dayName === "Sunday") {
-      day.attendenceStatus = "Weekend"
-    }
-
-    //checking if holiday
-    for (let j = 0; j < HolidayDates.length; j++) {
-      const holiday = HolidayDates[j];
-      const holidayDateAsString = holiday.holidayDate.toISOString().split('T')[0];
-      if (day.date == holidayDateAsString && holiday.holidayType == "holiday") {
-        day.attendenceStatus = "Holiday";
-        day.holidayDetails = holiday;
-      }
-      if (day.date == holidayDateAsString && holiday.holidayType == "weekend") {
-        day.attendenceStatus = "Weekend";
-
-      }
-    }
-
-    //checking if on leave
-    for (let j = 0; j < leaveDates.length; j++) {
-      const leave = leaveDates[j];
-      const leavestartDateAsString = leave.startDate.toISOString().split('T')[0];
-      const leavesendDateAsString = leave.endDate.toISOString().split('T')[0];
-      if (day.date <= leavesendDateAsString && day.date >= leavestartDateAsString) {
-        day.attendenceStatus = "Leave"
-        day.leaveDetails = leave
-      }
-    }
-
-    //if none of above changing status to "present" else remains absent
-    for (let j = 0; j < attendenceData.length; j++) {
-      const attendenceofDay = attendenceData[j];
-      const attendenceDateAsString = attendenceofDay.Date.toISOString().split('T')[0]; // Convert Date object to string in "YYYY-MM-DD" format
-      if (day.date == attendenceDateAsString) {
-        day.attendenceStatus = "present"
-        day.attendeDetails = attendenceofDay
-      }
-    }
-
-  }
-
-
-  res.status(200).json({ status: 200, message: 'got data', data: resData });
-
-
-})
+const {getattendencebyempid}= require('./controllers/adminControls/attendence.js')
+app.get('/getattendencebyempid/:id', getattendencebyempid)
 
 //10. -------->clock-in API
 app.post('/clockin', (req, res) => {
+  const getDate= require('./utils/getDate.js')
+  var today = new Date(); 
+  const {currentTime,todayDate}=getDate(today)
 
   const values = [
     req.body.employeeId,
@@ -1848,7 +1728,8 @@ app.post('/clockin', (req, res) => {
 //11. -------->clock-out API
 
 app.post('/clockout', checkRequiredFields(["employeeId"]), (req, res) => {
-
+  const today = new Date(); 
+  const {currentTime}=getDate(today)
   db.query(`SELECT * from attendence WHERE employeeId=${req.body.employeeId} AND 	clockOut="00:00:00"`, (err, results) => {
     if (err) {
       res.status(400).json({ message: 'error in doing clockout', err });
@@ -1876,6 +1757,8 @@ app.post('/clockout', checkRequiredFields(["employeeId"]), (req, res) => {
 
 })
 app.post('/clockinstatus', checkRequiredFields(["employeeId"]), (req, res) => {
+  const today = new Date(); 
+  const {todayDate}=getDate(today)
 
   db.query(`SELECT * from attendence WHERE employeeId=${req.body.employeeId} AND 	Date="${todayDate}"`, (err, results) => {
     if (results.length == 0) {
@@ -1893,6 +1776,8 @@ app.post('/clockinstatus', checkRequiredFields(["employeeId"]), (req, res) => {
 
 //12. -------->break start API
 app.post('/breakstart', checkRequiredFields(["employeeId"]), (req, res) => {
+  const today = new Date(); 
+  const {currentTime,todayDate}=getDate(today)
   const values = [
     req.body.employeeId,
     todayDate,
@@ -1920,6 +1805,8 @@ app.post('/breakstart', checkRequiredFields(["employeeId"]), (req, res) => {
 //13. -------->ending the break API
 
 app.post('/breakend', checkRequiredFields(["employeeId"]), (req, res) => {
+  var today = new Date(); 
+  const {currentTime}=getDate(today)
 
   db.query(`SELECT * from breaks WHERE employeeId=${req.body.employeeId} AND 	breakEnd="00:00:00"`, (err, results) => {
     if (results.length == 0) {
@@ -2418,6 +2305,8 @@ app.get('/deleteannouncementbyid/:id', (req, res) => {
 })
 //19. get holidays
 app.get('/getholidays', (req, res) => {
+  const today = new Date(); 
+  const {todayDate}=getDate(today)
 
   //sql query to reteive all the documents of table
   const query = `SELECT * FROM announcements WHERE type="holiday" AND announcement_date>'${todayDate}' `
@@ -2435,6 +2324,8 @@ app.post('/presenttoday', presentToday)
 
 //get today's absent employees 
 app.get('/getabsents', async (req, res) => {
+  const today = new Date(); 
+  const {todayDate}=getDate(today)
 
   const query = `
   SELECT employee.employeeId, employee.name 
