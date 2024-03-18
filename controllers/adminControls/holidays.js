@@ -1,15 +1,25 @@
+// Inside your Node.js server file (e.g., app.js or server.js)
 const express = require('express');
+const mysql = require('mysql');
+const bodyParser = require('body-parser');
 const app = express();
-app.use(express.urlencoded({ extended: true }));
-// This is required to handle urlencoded data
-app.use(express.json());
+const port = 8080;
+const cors = require('cors');
+const multer = require('multer');
+const fs = require('fs');
+
+app.use(bodyParser.json());
+app.use(cors());
+app.use(express.static('public'))
+app.use(bodyParser.urlencoded({ extended: true }));
+
 
 const db = require('../../config/db')
 
 
 const { todayDate } = require('../../utils/getDate')
 
-const convtoIST = require('./utils/convtoIST.js')
+const convtoIST = require('../../utils/convtoIST')
 const createHoliday = async (req, res) => {
     const values = [
         !req.body.holidayType ? "holiday" : req.body.holidayType,

@@ -1,13 +1,15 @@
 const express = require('express');
+const bodyParser = require('body-parser');
 const app = express();
-app.use(express.urlencoded({ extended: true }));
-// This is required to handle urlencoded data
-app.use(express.json()); 
+const cors = require('cors');
+
+app.use(bodyParser.json());
+app.use(cors());
+app.use(express.static('public'))
+app.use(bodyParser.urlencoded({ extended: true }));
+ 
 
 const db = require('../../config/db')
-
-
-const checkRequiredFields = require('../../utils/validator')
 
 //create policies
 const createPolicy = async (req, res) => {
@@ -55,7 +57,6 @@ const getAllPoliciesbyId = async (req, res) => {
 }
 const updatePolicy = async (req, res) => {
     console.log(req.body)
-    checkRequiredFields([req.body.policyId]);
     const query = `UPDATE \`policies\` 
     SET 
     \`policyName\`='${req.body?.policyName}',

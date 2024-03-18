@@ -155,7 +155,7 @@ app.post('/createemployee', employee_pics, checkRequiredFields([
     db.query(query, values, (err, result) => {
       if (err) {
         reject(err)
-        
+
         return;
       }
       else {
@@ -1029,7 +1029,6 @@ app.post('/addtask', task_docs_upload.array('taskDocs'), checkRequiredFields([
 });
 
 app.post('/edittask', task_docs_upload.array('taskDocs'), (req, res) => {
-  console.log(req.body)
   const query = `UPDATE tasks 
   SET 
   taskName = '${req.body?.taskName}',
@@ -1041,10 +1040,10 @@ app.post('/edittask', task_docs_upload.array('taskDocs'), (req, res) => {
   endDate = '${req.body?.endDate}',
   assignedTo = ${req.body?.assignedTo},
   reportTo = ${req.body?.reportTo},
-  taskDocs = '${req.file ? req.file : JSON.stringify(req?.files.map(file => file.filename))}'
+  taskDocs = '${req.files ? JSON.stringify(req?.files.map(file => file.filename)) : ""}'
   WHERE
     taskId = ${req.body.taskId}`
-  console.log(req.body)
+
   db.query(query, (err, results) => {
     if (err) {
       res.json({ status: 500, message: "Error in updating tasks ", err });
@@ -1375,8 +1374,8 @@ app.get('/getduetasks', async (req, res) => {
 })
 
 //get task by projectId
-const {getTasksbyprojectId}= require('./controllers/commonControls/tasks.js')
-app.get('/gettasksbyprojectid/:id',getTasksbyprojectId)
+const { getTasksbyprojectId } = require('./controllers/commonControls/tasks.js')
+app.get('/gettasksbyprojectid/:id', getTasksbyprojectId)
 
 //---------------------> leaves apis starts here <----------------------
 // 7. apply leave API
@@ -1462,9 +1461,9 @@ app.get('/getleaves', (req, res) => {
       res.status(500).json({ error: 'can not retrieve leaves' });
       return;
     }
-    results.forEach((row)=> {
-      row.startDate= convtoIST(row.startDate)
-      row.endDate= convtoIST(row.endDate)
+    results.forEach((row) => {
+      row.startDate = convtoIST(row.startDate)
+      row.endDate = convtoIST(row.endDate)
     })
     res.json({ status: 200, message: "got all leaves successfully", data: results });
 
@@ -1507,10 +1506,10 @@ app.get('/getleaverequests', async (req, res) => {
       return row;
     }
   }))
-  leaveRequestswithNames.forEach((row)=> {
+  leaveRequestswithNames.forEach((row) => {
     console.log(row.startDate)
-    row.startDate= convtoIST(row.startDate)
-    row.endDate= convtoIST(row.endDate)
+    row.startDate = convtoIST(row.startDate)
+    row.endDate = convtoIST(row.endDate)
   })
   res.json({ status: 200, message: "projects for given employeeId", data: leaveRequestswithNames });
 })
@@ -1552,14 +1551,14 @@ app.get('/getleavesoftoday', async (req, res) => {
       return row;
     }
   }));
-  leavesWithDetails.forEach((row)=> {
-      console.log(row.startDate)
-      row.startDate= convtoIST(row.startDate)
-      row.endDate= convtoIST(row.endDate)
-    })
+  leavesWithDetails.forEach((row) => {
+    console.log(row.startDate)
+    row.startDate = convtoIST(row.startDate)
+    row.endDate = convtoIST(row.endDate)
+  })
 
 
-  
+
 
   res.json({ status: 200, message: "projects for given employeeId", data: leavesWithDetails });
 })
@@ -1612,12 +1611,12 @@ app.get('/getanniversaries', (req, res) => {
       res.status(500).json({ error: 'can not retrieve anniversary' });
       return;
     }
-    
-    results.forEach(row=> row.date_of_joining=convtoIST(row.date_of_joining))
+
+    results.forEach(row => row.date_of_joining = convtoIST(row.date_of_joining))
     const filteredResults = results.filter(row => {
       const joiningDate = new Date(row.date_of_joining); // Convert to Date object
       const todayDate = new Date(); // Get current date
-    
+
       // Check if joining date is not today
       if (
         joiningDate.getFullYear() === todayDate.getFullYear() &&
@@ -1626,7 +1625,7 @@ app.get('/getanniversaries', (req, res) => {
       ) {
         return false; // Exclude if joining date is today
       }
-    
+
       return true; // Include all other dates
     });
     res.json({ status: 200, message: "got anniversaries successfully", data: filteredResults });
@@ -1645,10 +1644,10 @@ app.get('/getleavesbyempid/:id', (req, res) => {
       res.status(500).json({ error: 'Internal server error', message: err });
       return;
     } else {
-      results.forEach((row)=> {
+      results.forEach((row) => {
         console.log(row.startDate)
-        row.startDate= convtoIST(row.startDate)
-        row.endDate= convtoIST(row.endDate)
+        row.startDate = convtoIST(row.startDate)
+        row.endDate = convtoIST(row.endDate)
       })
       res.json({ status: 200, message: "got all leaves of employee sucessfully", data: results });
     }
@@ -1745,7 +1744,8 @@ app.get('/getattendencebyempid/:id', async (req, res) => {
       const holiday = HolidayDates[j];
       const holidayDateAsString = holiday.holidayDate.toISOString().split('T')[0];
       if (day.date == holidayDateAsString) {
-        day.attendenceStatus = "Holiday"
+        day.attendenceStatus = "Holiday";
+        day.holidayDetails = holiday;
       }
     }
 
@@ -1755,6 +1755,7 @@ app.get('/getattendencebyempid/:id', async (req, res) => {
       const leavesendDateAsString = leave.endDate.toISOString().split('T')[0];
       if (day.date <= leavesendDateAsString && day.date >= leavestartDateAsString) {
         day.attendenceStatus = "Leave"
+        day.leaveDetails = leave
       }
     }
 
@@ -2283,12 +2284,20 @@ const holiday_docs_storage = multer.diskStorage({
 });
 const holiday_docs_upload = multer({ storage: holiday_docs_storage })
 
-const {createHoliday,getAllHolidays,getHolidaysbyId,updateHoliday,deleteHoliday}= require('./controllers/adminControls/holidays.js')
-app.post('/createholiday',holiday_docs_upload.array('holidayDocs'),createHoliday)
-app.get('/getallholidays',getAllHolidays)
-app.get('/getholidaysbyid/:id',getHolidaysbyId)
-app.post('/updateholiday',holiday_docs_upload.array('holidayDocs'),updateHoliday)
-app.get('/deleteholiday/:id',deleteHoliday)
+const { createHoliday, getAllHolidays, getHolidaysbyId, updateHoliday, deleteHoliday } = require('./controllers/adminControls/holidays.js')
+app.post('/createholiday', holiday_docs_upload.array('holidayDocs'), createHoliday)
+app.get('/getallholidays', getAllHolidays)
+app.get('/getholidaysbyid/:id', getHolidaysbyId)
+app.post('/updateholiday', holiday_docs_upload.array('holidayDocs'), updateHoliday)
+app.get('/deleteholiday/:id', deleteHoliday)
+
+const emptyUpload = multer();
+const { createPolicy, getAllPolicies, updatePolicy, deletePolicy, getAllPoliciesbyId } = require('./controllers/adminControls/policies.js');
+app.post('/createpolicy', upload.none(), createPolicy)
+app.get('/getallpolicies', getAllPolicies)
+app.get('/getallpoliciesbyid/:id', getAllPoliciesbyId)
+app.post('/updatepolicy', upload.none(), updatePolicy)
+app.get('/deletepolicy/:id', deletePolicy)
 
 //edit announcements by id
 
@@ -2374,8 +2383,8 @@ app.get('/getholidays', (req, res) => {
   });
 })
 //get today's present employees 
-const {presentToday}=require('./controllers/adminControls/attendence.js')
-app.post('/presenttoday',presentToday)
+const { presentToday } = require('./controllers/adminControls/attendence.js')
+app.post('/presenttoday', presentToday)
 
 //get today's absent employees 
 app.get('/getabsents', async (req, res) => {
@@ -2405,13 +2414,12 @@ app.get('/getabsents', async (req, res) => {
   });
 })
 
-const { createPolicy, getAllPolicies, updatePolicy, deletePolicy ,getAllPoliciesbyId} = require('./controllers/adminControls/policies.js');
-const { clearScreenDown } = require('readline');
-app.post('/createpolicy', createPolicy)
-app.get('/getallpolicies', getAllPolicies)
-app.get('/getallpoliciesbyid/:id', getAllPoliciesbyId)
-app.post('/updatepolicy/', updatePolicy)
-app.get('/deletepolicy/:id', deletePolicy)
+// const { createPolicy, getAllPolicies, updatePolicy, deletePolicy ,getAllPoliciesbyId} = require('./controllers/adminControls/policies.js');
+// app.post('/createpolicy', createPolicy)
+// app.get('/getallpolicies', getAllPolicies)
+// app.get('/getallpoliciesbyid/:id', getAllPoliciesbyId)
+// app.post('/updatepolicy', updatePolicy)
+// app.get('/deletepolicy/:id', deletePolicy)
 
 //listening app
 app.listen(port, () => {
