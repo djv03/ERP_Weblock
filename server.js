@@ -1049,7 +1049,22 @@ app.post('/edittask', task_docs_upload.array('taskDocs'), (req, res) => {
       res.json({ status: 500, message: "Error in updating tasks ", err });
       return;
     } else {
-      res.json({ status: 200, message: "task updated successfully", data: results });
+      if (req.body?.status === "done") {
+        const sub_query = `UPDATE projects
+        SET completedTasks = completedTasks + 1
+        WHERE
+        projectId = ${req.body.projectId}
+        `
+
+        db.query(sub_query, (err, results) => {
+          if (err) {
+            res.json({ status: 500, message: "Error in updating tasks ", err });
+            return;
+          } else {
+            res.json({ status: 200, message: "task updated successfully", data: results });
+          }
+        });
+      }
     }
   });
 });
@@ -1731,24 +1746,26 @@ app.get('/getattendencebyempid/:id', async (req, res) => {
     const day = resData[i];
     day.attendenceStatus = "absent"
 
-    for (let j = 0; j < attendenceData.length; j++) {
-      const attendenceofDay = attendenceData[j];
-      const attendenceDateAsString = attendenceofDay.Date.toISOString().split('T')[0]; // Convert Date object to string in "YYYY-MM-DD" format
-      if (day.date == attendenceDateAsString) {
-        day.attendenceStatus = "present"
-        day.attendeDetails = attendenceofDay
-      }
+    //checking sunday
+    if (day.dayName === "Sunday") {
+      day.attendenceStatus = "Weekend"
     }
 
+    //checking if holiday
     for (let j = 0; j < HolidayDates.length; j++) {
       const holiday = HolidayDates[j];
       const holidayDateAsString = holiday.holidayDate.toISOString().split('T')[0];
-      if (day.date == holidayDateAsString) {
+      if (day.date == holidayDateAsString && holiday.holidayType == "holiday") {
         day.attendenceStatus = "Holiday";
         day.holidayDetails = holiday;
       }
+      if (day.date == holidayDateAsString && holiday.holidayType == "weekend") {
+        day.attendenceStatus = "Weekend";
+
+      }
     }
 
+    //checking if on leave
     for (let j = 0; j < leaveDates.length; j++) {
       const leave = leaveDates[j];
       const leavestartDateAsString = leave.startDate.toISOString().split('T')[0];
@@ -1759,8 +1776,14 @@ app.get('/getattendencebyempid/:id', async (req, res) => {
       }
     }
 
-    if (day.dayName === "Sunday") {
-      day.attendenceStatus = "Weekend"
+    //if none of above changing status to "present" else remains absent
+    for (let j = 0; j < attendenceData.length; j++) {
+      const attendenceofDay = attendenceData[j];
+      const attendenceDateAsString = attendenceofDay.Date.toISOString().split('T')[0]; // Convert Date object to string in "YYYY-MM-DD" format
+      if (day.date == attendenceDateAsString) {
+        day.attendenceStatus = "present"
+        day.attendeDetails = attendenceofDay
+      }
     }
 
   }
