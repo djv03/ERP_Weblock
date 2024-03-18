@@ -1049,23 +1049,47 @@ app.post('/edittask', task_docs_upload.array('taskDocs'), (req, res) => {
       res.json({ status: 500, message: "Error in updating tasks ", err });
       return;
     } else {
-      if (req.body?.status === "done") {
-        const sub_query = `UPDATE projects
+      res.json({ status: 200, message: "task updated successfully", data: results });
+    }
+  });
+});
+
+//edit task status
+app.post('/edittaskstatus', task_docs_upload.none(), (req, res) => {
+  const query = `UPDATE tasks 
+  SET 
+  projectId = '${req.body?.projectId}',
+  status = '${req.body?.status}'
+  WHERE
+    taskId = ${req.body.taskId}`
+
+  db.query(query, (err, results) => {
+    if (err) {
+      res.json({ status: 500, message: "Error in updating tasks ", err });
+      return;
+    }
+
+
+    if (req.body?.status === "done") {
+      const sub_query = `
+        UPDATE projects
         SET completedTasks = completedTasks + 1
         WHERE
-        projectId = ${req.body.projectId}
-        `
+        projectId = ${req.body.projectId}`;
 
-        db.query(sub_query, (err, results) => {
-          if (err) {
-            res.json({ status: 500, message: "Error in updating tasks ", err });
-            return;
-          } else {
-            res.json({ status: 200, message: "task updated successfully", data: results });
-          }
-        });
-      }
+      db.query(sub_query, (err, results) => {
+        if (err) {
+          res.json({ status: 500, message: "Error in updating tasks ", err });
+          return;
+        } else {
+          res.json({ status: 200, message: "task updated successfully", data: results });
+        }
+      });
     }
+    else {
+      res.json({ status: 200, message: "task updated successfully", data: results });
+    }
+
   });
 });
 
