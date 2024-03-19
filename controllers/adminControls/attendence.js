@@ -1,7 +1,7 @@
 const db = require('../../config/db')
 
 
-const getDateofMonth = require('../../utils/getdateofmonths');
+const {getDaysOfMonthWithDay} = require('../../utils/getdateofmonths');
 const convtoIST = require('../../utils/convtoIST');
 
 const presentToday = async (req, res) => {
@@ -47,7 +47,7 @@ const presentToday = async (req, res) => {
 }
 
 const getattendencebyempid=async(req,res)=>{
-    const resData = getDateofMonth();
+    const resData = getDaysOfMonthWithDay();
   // console.log(resData)
   const attendenceData = await new Promise((resolve, reject) => {
     const query = `SELECT *

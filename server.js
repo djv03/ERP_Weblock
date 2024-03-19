@@ -2359,6 +2359,13 @@ app.get('/getabsents', async (req, res) => {
 // app.post('/updatepolicy', updatePolicy)
 // app.get('/deletepolicy/:id', deletePolicy)
 
+
+//salary APIs
+const {getSalarybyempId}= require('./controllers/adminControls/salary.js')
+app.post('/getsalarybyempid',announcements_docs_upload.none(),getSalarybyempId)
+
+
+
 //listening app
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
