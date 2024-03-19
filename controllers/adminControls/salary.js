@@ -48,13 +48,40 @@ const getSalarybyempId = async (req, res) => {
     const noofSundays = countSundays(2024, `${req.body.month}`)
     console.log("no of sundays------>", noofSundays)
 
+    //get working hour of the compnay
+    const workinghours = await new Promise((resolve, reject) => {
+        const query = `SELECT *
+        FROM timing
+        WHERE 1 `
+
+        db.query(query, (err, results) => {
+            if (err) {
+                reject(err)
+            }
+            else {
+                resolve(results[0].workingHours);
+            }
+        })
+    })
+
 
     //getting all the holidays offered in the months(including alternate saturday announced by admin too)
     const holidaysofMonth = await new Promise((resolve, reject) => {
+
+        const startDate = new Date(req.body.year, req.body.month - 1, 2); // Months are 0-indexed in JavaScript Date
+        const endDate = new Date(req.body.year, req.body.month, 0); // Day 0 of the next month is the last day of the current month
+
+        // Convert startDate and endDate to MySQL date format 'YYYY-MM-DD'
+        const startDateFormat = startDate.toISOString().split('T')[0];
+        console.log("startdate of month", startDateFormat)
+        const endDateFormat = endDate.toISOString().split('T')[0];
+        console.log("startdate of month", endDateFormat)
+
+
         const query = `SELECT holidayDate
         FROM holidays
-        WHERE holidayDate >= DATE_FORMAT(NOW(), '%Y-%m-01')
-        AND holidayDate <= LAST_DAY(NOW()) `
+        WHERE holidayDate >= "${startDateFormat}"
+        AND holidayDate <= "${endDateFormat}" `
 
         db.query(query, (err, results) => {
             if (err) {
@@ -112,13 +139,20 @@ const getSalarybyempId = async (req, res) => {
 
     //finding present days of employee 
     const getPresentDays = async (req, res) => {
+        const startDate = new Date(req.body.year, req.body.month - 1, 2); // Months are 0-indexed in JavaScript Date
+        const endDate = new Date(req.body.year, req.body.month, 0); // Day 0 of the next month is the last day of the current month
+
+        // Convert startDate and endDate to MySQL date format 'YYYY-MM-DD'
+        const startDateFormat = startDate.toISOString().split('T')[0];
+        const endDateFormat = endDate.toISOString().split('T')[0];
+
         const resData = getDaysOfMonthWithDay();
         // console.log(resData)
         const attendenceData = await new Promise((resolve, reject) => {
             const query = `SELECT *
         FROM attendence
-        WHERE Date >= DATE_FORMAT(NOW(), '%Y-%m-01')
-        AND Date <= LAST_DAY(NOW())
+        WHERE Date >=  "${startDateFormat}"
+        AND Date <=  "${endDateFormat}"
         AND employeeId= ${req.body.employeeId} `
             db.query(query, (err, results) => {
                 if (err) {
@@ -135,10 +169,16 @@ const getSalarybyempId = async (req, res) => {
 
 
         const HolidayDates = await new Promise((resolve, reject) => {
+            const startDate = new Date(req.body.year, req.body.month - 1, 2); // Months are 0-indexed in JavaScript Date
+            const endDate = new Date(req.body.year, req.body.month, 0); // Day 0 of the next month is the last day of the current month
+
+            // Convert startDate and endDate to MySQL date format 'YYYY-MM-DD'
+            const startDateFormat = startDate.toISOString().split('T')[0];
+            const endDateFormat = endDate.toISOString().split('T')[0];
             const query = `SELECT *
         FROM holidays
-        WHERE holidayDate >= DATE_FORMAT(NOW(), '%Y-%m-01')
-        AND holidayDate <= LAST_DAY(NOW())
+        WHERE holidayDate >= "${startDateFormat}"
+        AND holidayDate <= "${endDateFormat}"
         `
 
             db.query(query, (err, results) => {
@@ -156,10 +196,17 @@ const getSalarybyempId = async (req, res) => {
 
 
         const leaveDates = await new Promise((resolve, reject) => {
+            const startDate = new Date(req.body.year, req.body.month - 1, 2); // Months are 0-indexed in JavaScript Date
+            const endDate = new Date(req.body.year, req.body.month, 0); // Day 0 of the next month is the last day of the current month
+
+            // Convert startDate and endDate to MySQL date format 'YYYY-MM-DD'
+            const startDateFormat = startDate.toISOString().split('T')[0];
+            const endDateFormat = endDate.toISOString().split('T')[0];
+
             const query = `SELECT *
         FROM leaves
-        WHERE startDate >= DATE_FORMAT(NOW(), '%Y-%m-01')
-        AND startDate <= LAST_DAY(NOW())
+        WHERE startDate >= "${startDateFormat}"
+        AND startDate <= "${endDateFormat}"
         AND status="approve"
         AND empId=${req.body.employeeId}
         `
@@ -173,11 +220,11 @@ const getSalarybyempId = async (req, res) => {
                 }
             })
         })
-
         leaveDates.forEach((leave) => {
             leave.startDate = convtoIST(leave.startDate);
             leave.endDate = convtoIST(leave.endDate);
         });
+        console.log("no. of leaves-------->",leaveDates.length)
 
         for (let i = 0; i < resData.length; i++) {
             const day = resData[i];
@@ -225,11 +272,11 @@ const getSalarybyempId = async (req, res) => {
                 }
             }
         }
-        return resData
+        return [resData,leaveDates]
 
     }
 
-    const totalPresentDays = await getPresentDays(req, res)
+    const [totalPresentDays,leaveDates] = await getPresentDays(req, res)
     // console.log(" employee was present on days ------>", totalPresentDays.length)
 
 
@@ -250,17 +297,30 @@ const getSalarybyempId = async (req, res) => {
             // console.log(hoursworked)
         }
     }
-    console.log(hoursworked, "total worked")
+    console.log( "total hour worked------->",hoursworked)
 
 
-    const totalWorkingHours = (noofDays - noofHolidays - noofSundays) * req.body.workinghours;
-    console.log("totalWorkingHours",totalWorkingHours)
+    const totalWorkingHours = (noofDays - noofHolidays - noofSundays) * workinghours;
+    console.log("totalWorkingHours-------->", totalWorkingHours)
     const PayPerHour = totalSalary / totalWorkingHours;
-    console.log("PayPerHour",PayPerHour)
-    const netSalary = (PayPerHour *hoursworked) + (PayPerHour*req.body.workinghours) ;
-    console.log("netSalary",netSalary)
+    console.log("PayPerHour---------->", PayPerHour)
+    const netSalary = (PayPerHour * hoursworked) + (PayPerHour * workinghours);
+    console.log("netSalary---------->", netSalary)
 
-    res.json({ status: 200, message: "total salary of employee", data: netSalary });
+
+    //appending data to the response
+    resobj={}
+    resobj.currentSalary= totalSalary;
+    resobj.leaves= leaveDates.length;
+    resobj.leavesDeducation= leaveDates.length*PayPerHour * workinghours;
+    resobj.leavesDetails= leaveDates;
+    resobj.extra= PayPerHour * workinghours;
+
+    resobj.netSalary= netSalary;
+
+    res.json({ status: 200, message: "total salary of employee", data: resobj });
+
+    console.log("end of response--------------------------------------------------------------------------------------------------")
 }
 
 module.exports = { getSalarybyempId }

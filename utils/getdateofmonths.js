@@ -34,29 +34,20 @@ function getDaysOfMonthWithDay(date) {
   function totalDaysInMonth(year, month) {
     // JavaScript months are zero-based (0 = January, 1 = February, etc.)
     // So, to get the last day of a month, set the day to 0 of the next month
-    return new Date(year, month + 1, 0).getDate();
+    return new Date(year, month , 0).getDate();
 }
 
 function countSundays(year, month) {
-  // Get the day of the week for the first day of the month (0 for Sunday, 1 for Monday, ..., 6 for Saturday)
-  const firstDayOfWeek = new Date(year, month, 1).getDay();
-
-  // Get the number of days in the month
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-  // Calculate the number of complete weeks
-  const completeWeeks = Math.floor((daysInMonth + firstDayOfWeek) / 7);
-
-  // Calculate the number of remaining days after complete weeks
-  const remainingDays = (daysInMonth + firstDayOfWeek) % 7;
-
-  // Check if the remaining days include a Sunday
-  let sundays = completeWeeks;
-  if (remainingDays > 0 && (firstDayOfWeek + remainingDays) % 7 === 0) {
-      sundays++;
+  let sundayCount = 0;
+  // Month in JavaScript is 0-indexed (January is 0, February is 1, etc.), so adjust by -1.
+  let date = new Date(year, month - 1, 1);
+  while (date.getMonth() === month - 1) {
+    if (date.getDay() === 0) { // Sunday
+      sundayCount++;
+    }
+    date.setDate(date.getDate() + 1); // Move to the next day
   }
-
-  return sundays;
+  return sundayCount;
 }
 
   
