@@ -29,7 +29,7 @@ const { getDaysOfMonthWithDay } = require('../../utils/getdateofmonths');
 // console.log(daysInMonth); // Output: 31
 
 
-const getSalarybyempId = async (req, res) => {
+const createSalarybyempId = async (req, res) => {
 
 
 
@@ -121,7 +121,7 @@ const getSalarybyempId = async (req, res) => {
     // })
 
 
-    const totalSalary = await new Promise((resolve, reject) => {
+    const currentSalary = await new Promise((resolve, reject) => {
         const query = `SELECT 	salary
         FROM employee
         WHERE employeeId= ${req.body.employeeId}; `
@@ -135,7 +135,7 @@ const getSalarybyempId = async (req, res) => {
             }
         })
     })
-    console.log("salary of employee------>", totalSalary)
+    console.log("salary of employee------>", currentSalary)
 
     //finding present days of employee 
     const getPresentDays = async (req, res) => {
@@ -224,7 +224,7 @@ const getSalarybyempId = async (req, res) => {
             leave.startDate = convtoIST(leave.startDate);
             leave.endDate = convtoIST(leave.endDate);
         });
-        console.log("no. of leaves-------->",leaveDates.length)
+        console.log("no. of leaves-------->", leaveDates.length)
 
         for (let i = 0; i < resData.length; i++) {
             const day = resData[i];
@@ -272,11 +272,11 @@ const getSalarybyempId = async (req, res) => {
                 }
             }
         }
-        return [resData,leaveDates]
+        return [resData, leaveDates]
 
     }
 
-    const [totalPresentDays,leaveDates] = await getPresentDays(req, res)
+    const [totalPresentDays, leaveDates] = await getPresentDays(req, res)
     // console.log(" employee was present on days ------>", totalPresentDays.length)
 
 
@@ -297,30 +297,92 @@ const getSalarybyempId = async (req, res) => {
             // console.log(hoursworked)
         }
     }
-    console.log( "total hour worked------->",hoursworked)
+    console.log("total hour worked------->", hoursworked)
 
 
     const totalWorkingHours = (noofDays - noofHolidays - noofSundays) * workinghours;
     console.log("totalWorkingHours-------->", totalWorkingHours)
-    const PayPerHour = totalSalary / totalWorkingHours;
+    const PayPerHour = currentSalary / totalWorkingHours;
     console.log("PayPerHour---------->", PayPerHour)
+
+
+    const leavesofMonth = leaveDates.length;
+    const leavesDeducation = leaveDates.length * PayPerHour * workinghours;
+    const bonus = PayPerHour * workinghours;
     const netSalary = (PayPerHour * hoursworked) + (PayPerHour * workinghours);
-    console.log("netSalary---------->", netSalary)
-
-
     //appending data to the response
-    resobj={}
-    resobj.currentSalary= totalSalary;
-    resobj.leaves= leaveDates.length;
-    resobj.leavesDeducation= leaveDates.length*PayPerHour * workinghours;
-    resobj.leavesDetails= leaveDates;
-    resobj.extra= PayPerHour * workinghours;
+    resobj = {}
+    resobj.currentSalary = currentSalary;
+    resobj.leavesofMonth = leavesofMonth;
+    resobj.leavesDeducation = leavesDeducation;
+    resobj.leavesDetails = leaveDates;
+    resobj.bonus = bonus;
 
-    resobj.netSalary= netSalary;
+    resobj.netSalary = netSalary;
 
-    res.json({ status: 200, message: "total salary of employee", data: resobj });
+    const values = [
+        req.body.employeeId,
+        req.body.status,
+        req.body.month,
+        req.body.year,
+        currentSalary,
+        leavesofMonth,
+        leavesDeducation,
+        bonus,
+        netSalary
+    ]
+    const query = `
+    INSERT INTO salaries(
+        employeeId,
+        status,
+        month,
+        year,
+        currentSalary,
+        leavesofMonth,
+        leavesDeducation,
+        bonus,
+        netSalary
+    )
+    VALUES
+     (?, ?, ?, ?,
+      ?, ?, ?, ?,
+      ? );`
+
+    db.query(query, values, (err, results) => {
+        if (err) {
+            return res.status(500).json({ message: "Error in creating employe", error: err });
+        }
+        res.json({ status: 200, message: "entry successfull in salary table", data: resobj });
+    })
+
 
     console.log("end of response--------------------------------------------------------------------------------------------------")
 }
 
-module.exports = { getSalarybyempId }
+const getSalarybysalaryId=(req,res)=>{
+    if (isNaN(req.params.id)) {
+        res.status(400).json({ message: "project id is required" });
+        return;
+      }
+      db.query(`SELECT * FROM salaries WHERE 	salaryId =${req.params.id}`, (err, results) => {
+        if (err) {
+          res.status(500).json({ error: 'Internal server error', message: err });
+          return;
+        } else {
+          res.json({ status: 200, message: "got salary successfully", data: results });
+        }
+      });
+}
+const getallSalaries=(req,res)=>{
+      db.query(`SELECT * FROM salaries WHERE 1`, (err, results) => {
+        if (err) {
+          res.status(500).json({ error: 'Internal server error', message: err });
+          return;
+        } else {
+          res.json({ status: 200, message: "got all salaries successfully", data: results });
+        }
+      });
+}
+
+
+module.exports = { createSalarybyempId,getSalarybysalaryId,getallSalaries }

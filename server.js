@@ -2360,9 +2360,19 @@ app.get('/getabsents', async (req, res) => {
 // app.get('/deletepolicy/:id', deletePolicy)
 
 
+//workingHours APIS
+
+const { createworkingHours,getworkingHours,updateWorkingHours,deleteWorkingHours} = require('./controllers/adminControls/workinghours.js');
+app.post('/createworkinghours',holiday_docs_upload.none(), createworkingHours)
+app.get('/getworkinghours', getworkingHours)
+app.post('/updateworkinghours',holiday_docs_upload.none(), updateWorkingHours)
+app.get('/deleteworkinghours/:id', deleteWorkingHours)
+
 //salary APIs
-const {getSalarybyempId}= require('./controllers/adminControls/salary.js')
-app.post('/getsalarybyempid',announcements_docs_upload.none(),getSalarybyempId)
+const {createSalarybyempId,getSalarybysalaryId,getallSalaries}= require('./controllers/adminControls/salary.js')
+app.post('/createsalarybyempid',announcements_docs_upload.none(),createSalarybyempId)
+app.get('/getsalarybysalaryid/:id',getSalarybysalaryId)
+app.get('/getallsalaries',getallSalaries)
 
 
 

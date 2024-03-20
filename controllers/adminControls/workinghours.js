@@ -1,7 +1,6 @@
 const db = require('../../config/db')
 
 const createworkingHours = async (req, res) => {
-    console.log(req.body)
     const query = `
   INSERT INTO timing(
       workingHours
@@ -36,7 +35,7 @@ const getworkingHours = async (req, res) => {
 const updateWorkingHours = async (req, res) => {
     console.log(req.body);
 
-    db.query(`UPDATE timing SET workingHours=${req.body.workingHours} `, (err, results) => {
+    db.query(`UPDATE timing SET workingHours=${req.body.workingHours} WHERE timingId = ${req.body.timingId } `, (err, results) => {
         if (err) {
             res.status(500).json({ err: 'Internal Server Error', err: err });
             return;
@@ -48,7 +47,7 @@ const updateWorkingHours = async (req, res) => {
 }
 
 const deleteWorkingHours = async (req, res) => {
-    db.query(`DELETE FROM timing WHERE workingHours=${req.params.id} `, (err, results) => {
+    db.query(`DELETE FROM timing WHERE timingId=${req.params.id} `, (err, results) => {
         if (err) {
             res.status(500).json({ err: 'Internal Server Error', err: err });
             return;
@@ -58,3 +57,5 @@ const deleteWorkingHours = async (req, res) => {
         }
     })
 }
+
+module.exports={createworkingHours,getworkingHours,updateWorkingHours,deleteWorkingHours}
