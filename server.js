@@ -2390,7 +2390,11 @@ app.post('/createsalarybyempid', announcements_docs_upload.none(), createSalaryb
 app.get('/getsalarybysalaryid/:id', getSalarybysalaryId)
 app.get('/getallsalaries', getallSalaries)
 
-
+//notifications API
+const {createNotification,getNotificationbyemployeeId,seeNotificationbyId}= require('./controllers/commonControls/notifications.js')
+app.post('/createNotification', announcements_docs_upload.none(), createNotification)
+app.get('/getnotificationbyemployeeid/:id',getNotificationbyemployeeId)
+app.get('/seenotificationbyid/:id',seeNotificationbyId)
 
 //listening app
 app.listen(port, () => {
