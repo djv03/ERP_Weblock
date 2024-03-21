@@ -1,60 +1,68 @@
 const db = require('../../config/db')
 
 
-const {getDaysOfMonthWithDay} = require('../../utils/getdateofmonths');
+const { getDaysOfMonthWithDay } = require('../../utils/getdateofmonths');
 const convtoIST = require('../../utils/convtoIST');
 
 const presentToday = async (req, res) => {
-    try {
-        const employeestoday = await new Promise((resolve, reject) => {
-            const query = `SELECT employeeId FROM attendence WHERE Date="${req.body.date}"`
-            db.query(query, (err, results) => {
-                if (err) {
-                    reject(err);
-                } else {
-                    resolve(results);
-                }
-            });
+  try {
+    const employeestoday = await new Promise((resolve, reject) => {
+      const query = `SELECT employeeId FROM attendence WHERE Date="${req.body.date}"`
+      db.query(query, (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results);
+        }
+      });
+    });
+
+    // Map over the results and fetch project details for each project
+    const employewithDetails = await Promise.all(employeestoday.map(async (row) => {
+      try {
+        const employee = await new Promise((resolve, reject) => {
+          db.query(`SELECT name from employee WHERE employeeId = ${row.employeeId}`, (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result[0]);
+            }
+          });
         });
 
-        // Map over the results and fetch project details for each project
-        const employewithDetails = await Promise.all(employeestoday.map(async (row) => {
-            try {
-                const employee = await new Promise((resolve, reject) => {
-                    db.query(`SELECT name from employee WHERE employeeId = ${row.employeeId}`, (err, result) => {
-                        if (err) {
-                            reject(err);
-                        } else {
-                            resolve(result[0]);
-                        }
-                    });
-                });
-
-                // Combine project details with the row
-                return { ...row, employee };
-            } catch (error) {
-                console.log("Error fetching project details:", error);
-                // If project details fetching fails, return row without details
-                return row;
-            }
-        }));
-        res.json({ status: 200, message: "todays present employee", data: employewithDetails });
-    }
-    catch (error) {
-        res.status(500).json({ error: 'Internal server error', message: error.message });
-    }
+        // Combine project details with the row
+        return { ...row, employee };
+      } catch (error) {
+        console.log("Error fetching project details:", error);
+        // If project details fetching fails, return row without details
+        return row;
+      }
+    }));
+    res.json({ status: 200, message: "todays present employee", data: employewithDetails });
+  }
+  catch (error) {
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
 
 }
 
-const getattendencebyempid=async(req,res)=>{
-    const resData = getDaysOfMonthWithDay();
-  // console.log(resData)
+const getattendencebyempid = async (req, res) => {
+  console.log(req.body)
+
+  const startDate = new Date(req.body.year, req.body.month - 1, 2); // Months are 0-indexed in JavaScript Date
+  const endDate = new Date(req.body.year, req.body.month, 1); // Day 0 of the next month is the last day of the current month
+  const startDateFormat = startDate.toISOString().split('T')[0];
+  console.log("startdate of month", startDateFormat)
+  const endDateFormat = endDate.toISOString().split('T')[0];
+  console.log("startdate of month", endDateFormat)
+
+  const resData = getDaysOfMonthWithDay(req.body.year, req.body.month);
   const attendenceData = await new Promise((resolve, reject) => {
     const query = `SELECT *
     FROM attendence
-    WHERE Date >= DATE_FORMAT(NOW(), '%Y-%m-01')
-    AND Date <= LAST_DAY(NOW())
-    AND employeeId= ${req.params.id} `
+    WHERE Date >="${startDateFormat}"
+    AND Date <="${endDateFormat}"
+    AND employeeId= ${req.body.employeeId} `
     db.query(query, (err, results) => {
       if (err) {
         reject(err)
@@ -70,9 +78,9 @@ const getattendencebyempid=async(req,res)=>{
   const breaksData = await new Promise((resolve, reject) => {
     const query = `SELECT *
     FROM breaks
-    WHERE Date >= DATE_FORMAT(NOW(), '%Y-%m-01')
-    AND Date <= LAST_DAY(NOW())
-    AND employeeId= ${req.params.id} `
+    WHERE Date >= "${startDateFormat}"
+    AND Date <= "${endDateFormat}"
+    AND employeeId= ${req.body.employeeId} `
     db.query(query, (err, results) => {
       if (err) {
         reject(err)
@@ -90,8 +98,8 @@ const getattendencebyempid=async(req,res)=>{
   const HolidayDates = await new Promise((resolve, reject) => {
     const query = `SELECT *
     FROM holidays
-    WHERE holidayDate >= DATE_FORMAT(NOW(), '%Y-%m-01')
-    AND holidayDate <= LAST_DAY(NOW())
+    WHERE holidayDate >= "${startDateFormat}"
+    AND holidayDate <= "${endDateFormat}"
     `
 
     db.query(query, (err, results) => {
@@ -106,17 +114,17 @@ const getattendencebyempid=async(req,res)=>{
   HolidayDates.forEach((holiday) => {
     holiday.holidayDate = convtoIST(holiday.holidayDate);
   });
-
-
+  
+  
   const leaveDates = await new Promise((resolve, reject) => {
     const query = `SELECT *
     FROM leaves
-    WHERE startDate >= DATE_FORMAT(NOW(), '%Y-%m-01')
-    AND startDate <= LAST_DAY(NOW())
+    WHERE startDate >= "${startDateFormat}"
+    AND startDate <= "${endDateFormat}"
     AND status="approve"
-    AND empId=${req.params.id}
+    AND empId=${req.body.employeeId}
     `
-
+    
     db.query(query, (err, results) => {
       if (err) {
         reject(err)
@@ -126,12 +134,12 @@ const getattendencebyempid=async(req,res)=>{
       }
     })
   })
-
+  
   leaveDates.forEach((leave) => {
     leave.startDate = convtoIST(leave.startDate);
     leave.endDate = convtoIST(leave.endDate);
   });
-
+  
   for (let i = 0; i < resData.length; i++) {
     const day = resData[i];
     day.attendenceStatus = "absent"
@@ -171,12 +179,12 @@ const getattendencebyempid=async(req,res)=>{
       const attendenceofDay = attendenceData[j];
       const attendenceDateAsString = attendenceofDay.Date.toISOString().split('T')[0]; // Convert Date object to string in "YYYY-MM-DD" format
 
-      const todayBreaks=await new Promise((resolve,rejects)=>{
-        db.query(`SELECT breakStart ,breakEnd FROM breaks WHERE employeeId=${req.params.id} AND Date= "${attendenceDateAsString}"`,(err,results)=>{
+      const todayBreaks = await new Promise((resolve, rejects) => {
+        db.query(`SELECT breakStart ,breakEnd FROM breaks WHERE employeeId=${req.body.employeeId} AND Date= "${attendenceDateAsString}"`, (err, results) => {
           if (err) {
             rejects(err)
           }
-          else{
+          else {
             resolve(results)
           }
         })
@@ -195,4 +203,4 @@ const getattendencebyempid=async(req,res)=>{
 
 }
 
-module.exports = { presentToday,getattendencebyempid }
+module.exports = { presentToday, getattendencebyempid }

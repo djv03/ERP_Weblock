@@ -30,6 +30,24 @@ const getworkingHours = async (req, res) => {
         }
     })
 }
+const getworkingHoursbyId = async (req, res) => {
+    if (isNaN(req.params.id)) {
+        res.status(400).json({ message: " id is required" });
+        return;
+      }
+      db.query(`SELECT * FROM timing WHERE 	timingId=${req.params.id}`, (err, results) => {
+        if (err) {
+          res.status(500).json({ error: 'Internal server error', message: err });
+          return;
+        } else {
+            if (results.length==0) {
+                return res.json({ status: 200, message: "no working hours found for given id" });
+                   
+            }
+         return res.json({ status: 200, message: "got timings successfully", data: results });
+        }
+      });
+}
 
 
 const updateWorkingHours = async (req, res) => {
@@ -58,4 +76,4 @@ const deleteWorkingHours = async (req, res) => {
     })
 }
 
-module.exports={createworkingHours,getworkingHours,updateWorkingHours,deleteWorkingHours}
+module.exports={createworkingHours,getworkingHours,updateWorkingHours,getworkingHoursbyId,deleteWorkingHours}

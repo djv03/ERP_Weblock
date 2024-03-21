@@ -1,14 +1,11 @@
-function getDaysOfMonthWithDay(date) {
-    const currentDate = date || new Date(); // If no date is provided, use current date
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
+function getDaysOfMonthWithDay(year,month) {
   
-    const daysInMonth = new Date(year, month + 1, 0).getDate(); // Get total days in the month
+    const daysInMonth = new Date(year, month , 0).getDate(); // Get total days in the month
   
     const daysArray = [];
   
     for (let i = 1; i <= daysInMonth; i++) {
-      const day = new Date(year, month, i);
+      const day = new Date(year, month-1, i);
       const formattedDate = formatDate(day);
       daysArray.push({
         date: formattedDate,

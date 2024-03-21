@@ -28,7 +28,7 @@ app.get('/', (req, res) => {
 
 const checkRequiredFields = require('./utils/validator.js')
 const convtoIST = require('./utils/convtoIST.js')
-const getDate= require('./utils/getDate.js')
+const getDate = require('./utils/getDate.js')
 const queryPromise = require('./utils/queryPromise.js');
 //------------------------ your API goes here--------------------------
 
@@ -919,8 +919,8 @@ app.get('/getemployeebyprojectid/:id', (req, res) => {
 
 //get active projects
 app.get('/getactiveprojects', (req, res) => {
-  const today = new Date(); 
-  const {todayDate}=getDate(today)
+  const today = new Date();
+  const { todayDate } = getDate(today)
   const query = `SELECT * from projects WHERE endDate> '${todayDate}'`;
   db.query(query, (err, results) => {
     if (err) {
@@ -934,8 +934,8 @@ app.get('/getactiveprojects', (req, res) => {
 
 //get active projects
 app.get('/getdueprojects', (req, res) => {
-  const today = new Date(); 
-  const {todayDate}=getDate(today)
+  const today = new Date();
+  const { todayDate } = getDate(today)
 
   const query = `SELECT * from projects WHERE endDate<'${todayDate}'`;
   db.query(query, (err, results) => {
@@ -1277,8 +1277,8 @@ app.get('/getalltasks', async (req, res) => {
 
 //get active tasks
 app.get('/getactivetasks', async (req, res) => {
-  const today = new Date(); 
-  const {todayDate}=getDate(today)
+  const today = new Date();
+  const { todayDate } = getDate(today)
 
   try {
     const activeTasks = await new Promise((resolve, reject) => {
@@ -1343,8 +1343,8 @@ app.get('/getactivetasks', async (req, res) => {
 
 //get due tasks
 app.get('/getduetasks', async (req, res) => {
-  const today = new Date(); 
-  const {todayDate}=getDate(today)
+  const today = new Date();
+  const { todayDate } = getDate(today)
   try {
     const dueTasks = await new Promise((resolve, reject) => {
       const query = `SELECT * from tasks WHERE endDate<='${todayDate}'`;
@@ -1550,8 +1550,8 @@ app.get('/getleaverequests', async (req, res) => {
 //leave on today
 
 app.get('/getleavesoftoday', async (req, res) => {
-  const today = new Date(); 
-  const {todayDate}=getDate(today)
+  const today = new Date();
+  const { todayDate } = getDate(today)
 
   const todaysleaves = await new Promise((resolve, reject) => {
     const query = `SELECT * FROM leaves WHERE startDate>='${todayDate}'`
@@ -1692,14 +1692,28 @@ app.get('/getleavesbyempid/:id', (req, res) => {
 //---------------------  all Clock APIs starts here-----------------------------
 
 // all over attendence module
-const {getattendencebyempid}= require('./controllers/adminControls/attendence.js')
-app.get('/getattendencebyempid/:id', getattendencebyempid)
+const { getattendencebyempid } = require('./controllers/adminControls/attendence.js')
+app.post('/getattendencebyempid', project_docs_upload.none(), getattendencebyempid)
 
 //10. -------->clock-in API
-app.post('/clockin', (req, res) => {
-  const getDate= require('./utils/getDate.js')
-  var today = new Date(); 
-  const {currentTime,todayDate}=getDate(today)
+app.post('/clockin', async (req, res) => {
+  const getDate = require('./utils/getDate.js')
+  var today = new Date();
+  const { currentTime, todayDate } = getDate(today)
+
+  const isClockedin = await new Promise((resolve, reject) => {
+    db.query(`SELECT * FROM attendence WHERE employeeId=${req.body.employeeId} AND Date="${todayDate}" `, (err, results) => {
+      if (results) {
+        resolve(results)
+      }
+      else reject(err)
+    })
+  })
+
+  if (isClockedin.length !== 0) {
+    return res.status(500).json({ status: 500, error: 'employee has already clock in, only clock out is allowed', employeeDetails: isClockedin });
+  }
+
 
   const values = [
     req.body.employeeId,
@@ -1721,15 +1735,15 @@ app.post('/clockin', (req, res) => {
       res.status(500).json({ error: 'clock in error' });
       return;
     }
-    res.status(200).json({ status: 200, message: 'employee clocked in' });
+    res.status(200).json({ status: 200, message: 'employee clocked in', employeeDetails: results, employeeId: req.body.employeeId });
   })
 })
 
 //11. -------->clock-out API
 
 app.post('/clockout', checkRequiredFields(["employeeId"]), (req, res) => {
-  const today = new Date(); 
-  const {currentTime}=getDate(today)
+  const today = new Date();
+  const { currentTime } = getDate(today)
   db.query(`SELECT * from attendence WHERE employeeId=${req.body.employeeId} AND 	clockOut="00:00:00"`, (err, results) => {
     if (err) {
       res.status(400).json({ message: 'error in doing clockout', err });
@@ -1757,8 +1771,8 @@ app.post('/clockout', checkRequiredFields(["employeeId"]), (req, res) => {
 
 })
 app.post('/clockinstatus', checkRequiredFields(["employeeId"]), (req, res) => {
-  const today = new Date(); 
-  const {todayDate}=getDate(today)
+  const today = new Date();
+  const { todayDate } = getDate(today)
 
   db.query(`SELECT * from attendence WHERE employeeId=${req.body.employeeId} AND 	Date="${todayDate}"`, (err, results) => {
     if (results.length == 0) {
@@ -1776,8 +1790,8 @@ app.post('/clockinstatus', checkRequiredFields(["employeeId"]), (req, res) => {
 
 //12. -------->break start API
 app.post('/breakstart', checkRequiredFields(["employeeId"]), (req, res) => {
-  const today = new Date(); 
-  const {currentTime,todayDate}=getDate(today)
+  const today = new Date();
+  const { currentTime, todayDate } = getDate(today)
   const values = [
     req.body.employeeId,
     todayDate,
@@ -1805,8 +1819,8 @@ app.post('/breakstart', checkRequiredFields(["employeeId"]), (req, res) => {
 //13. -------->ending the break API
 
 app.post('/breakend', checkRequiredFields(["employeeId"]), (req, res) => {
-  var today = new Date(); 
-  const {currentTime}=getDate(today)
+  var today = new Date();
+  const { currentTime } = getDate(today)
 
   db.query(`SELECT * from breaks WHERE employeeId=${req.body.employeeId} AND 	breakEnd="00:00:00"`, (err, results) => {
     if (results.length == 0) {
@@ -1875,20 +1889,21 @@ app.post('/createrequest', requests_docs_upload.single('value'), checkRequiredFi
     req.body.employeeId,
     req.body.type,//can be clocktime,update_employee
     req.body.description,
+    req.body.Date == undefined ? new Date().getDate() : req.body.Date,
     req.body.keyname,
     !req.file ? req.body.value : req.file.filename
   ];
-  console.log(req.file)
   const query = `INSERT INTO requests ( 
     employeeId,
     type,
     description,
+    Date,
     keyname,
     value
     ) 
     VALUES
     (?,?,?,?,
-    ?)`;
+    ?,?)`;
 
   db.query(query, values, (err, result) => {
     if (err) {
@@ -2305,8 +2320,8 @@ app.get('/deleteannouncementbyid/:id', (req, res) => {
 })
 //19. get holidays
 app.get('/getholidays', (req, res) => {
-  const today = new Date(); 
-  const {todayDate}=getDate(today)
+  const today = new Date();
+  const { todayDate } = getDate(today)
 
   //sql query to reteive all the documents of table
   const query = `SELECT * FROM announcements WHERE type="holiday" AND announcement_date>'${todayDate}' `
@@ -2324,8 +2339,8 @@ app.post('/presenttoday', presentToday)
 
 //get today's absent employees 
 app.get('/getabsents', async (req, res) => {
-  const today = new Date(); 
-  const {todayDate}=getDate(today)
+  const today = new Date();
+  const { todayDate } = getDate(today)
 
   const query = `
   SELECT employee.employeeId, employee.name 
@@ -2362,17 +2377,18 @@ app.get('/getabsents', async (req, res) => {
 
 //workingHours APIS
 
-const { createworkingHours,getworkingHours,updateWorkingHours,deleteWorkingHours} = require('./controllers/adminControls/workinghours.js');
-app.post('/createworkinghours',holiday_docs_upload.none(), createworkingHours)
+const { createworkingHours, getworkingHours, updateWorkingHours, deleteWorkingHours, getworkingHoursbyId } = require('./controllers/adminControls/workinghours.js');
+app.post('/createworkinghours', holiday_docs_upload.none(), createworkingHours)
 app.get('/getworkinghours', getworkingHours)
-app.post('/updateworkinghours',holiday_docs_upload.none(), updateWorkingHours)
+app.get('/getworkinghoursbyid/:id', getworkingHoursbyId)
+app.post('/updateworkinghours', holiday_docs_upload.none(), updateWorkingHours)
 app.get('/deleteworkinghours/:id', deleteWorkingHours)
 
 //salary APIs
-const {createSalarybyempId,getSalarybysalaryId,getallSalaries}= require('./controllers/adminControls/salary.js')
-app.post('/createsalarybyempid',announcements_docs_upload.none(),createSalarybyempId)
-app.get('/getsalarybysalaryid/:id',getSalarybysalaryId)
-app.get('/getallsalaries',getallSalaries)
+const { createSalarybyempId, getSalarybysalaryId, getallSalaries } = require('./controllers/adminControls/salary.js')
+app.post('/createsalarybyempid', announcements_docs_upload.none(), createSalarybyempId)
+app.get('/getsalarybysalaryid/:id', getSalarybysalaryId)
+app.get('/getallsalaries', getallSalaries)
 
 
 
