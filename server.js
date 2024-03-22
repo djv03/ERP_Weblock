@@ -1509,7 +1509,7 @@ app.get('/getleaverequests', async (req, res) => {
 
   const leaveRequests = await new Promise((resolve, rejects) => {
 
-    const query = "SELECT * FROM `leaves` WHERE status='pending' ";
+    const query = "SELECT * FROM `leaves` WHERE status='pending' ORDER BY leaveId DESC";
 
     db.query(query, (err, results) => {
       if (err) {
@@ -1674,7 +1674,7 @@ app.get('/getleavesbyempid/:id', (req, res) => {
   if (isNaN(req.params.id)) {
     res.status(400).json({ message: "please provide appropriate id " });
   }
-  db.query(`SELECT * FROM leaves WHERE empId =${req.params.id}`, (err, results) => {
+  db.query(`SELECT * FROM leaves WHERE empId =${req.params.id} ORDER BY leaveId DESC`, (err, results) => {
     if (err) {
       res.status(500).json({ error: 'Internal server error', message: err });
       return;
@@ -1958,10 +1958,9 @@ app.get('/getrequestbyid/:id', (req, res) => {
 })
 
 app.post('/getrequestsbytype', async (req, res) => {
-  console.log(req.body);
   try {
     const results = await new Promise((resolve, reject) => {
-      db.query(`SELECT * FROM requests WHERE type = '${req.body.type}' AND status = 'pending'`, (err, results) => {
+      db.query(`SELECT * FROM requests WHERE type = '${req.body.type}' AND status = 'pending' ORDER BY requestId DESC`, (err, results) => {
         if (err) reject(err);
         else resolve(results);
       });
@@ -1974,6 +1973,7 @@ app.post('/getrequestsbytype', async (req, res) => {
 
     for (let index = 0; index < results.length; index++) {
       const request = results[index];
+      request.Date= convtoIST(request.Date)
       try {
         const employeeResult = await new Promise((resolve, reject) => {
           db.query(`SELECT name FROM employee WHERE employeeId = ${request.employeeId}`, (err, result) => {
@@ -2014,7 +2014,7 @@ app.get('/getpendingrequests', async (req, res) => {
   //sql query to reteive all the documents of table
   try {
     const requests = await new Promise((resolve, reject) => {
-      const query = `SELECT * FROM requests WHERE status = 'pending'`;
+      const query = `SELECT * FROM requests WHERE status = 'pending' ORDER BY requestId DESC`;
       db.query(query, (err, results) => {
         if (err) {
           reject(err);
@@ -2158,8 +2158,7 @@ app.get('/getannouncements', (req, res) => {
   const query = "SELECT * FROM `announcements` WHERE 1";
   db.query(query, (err, results) => {
     if (err) {
-      res.status(500).json({ error: 'can not retrieve announcements' });
-      return;
+      return res.status(500).json({ error: 'can not retrieve announcements' });
     }
     res.json({ status: 200, message: "got all announcements successfully", data: results });
   });
@@ -2168,8 +2167,7 @@ app.get('/getannouncements', (req, res) => {
 //get announcements 
 app.get('/getannouncementbyid/:id', (req, res) => {
   if (isNaN(req.params.id)) {
-    res.status(400).json({ message: "announcement id is required" });
-    return;
+    return res.status(400).json({ message: "announcement id is required" });
   }
   db.query(`SELECT * FROM announcements WHERE announcementId = ${req.params.id}`, (err, results) => {
     if (err) {
