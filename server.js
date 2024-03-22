@@ -1695,95 +1695,10 @@ app.get('/getleavesbyempid/:id', (req, res) => {
 const { getattendencebyempid } = require('./controllers/adminControls/attendence.js')
 app.post('/getattendencebyempid', project_docs_upload.none(), getattendencebyempid)
 
-//10. -------->clock-in API
-app.post('/clockin', async (req, res) => {
-  const getDate = require('./utils/getDate.js')
-  var today = new Date();
-  const { currentTime, todayDate } = getDate(today)
-
-  const isClockedin = await new Promise((resolve, reject) => {
-    db.query(`SELECT * FROM attendence WHERE employeeId=${req.body.employeeId} AND Date="${todayDate}" `, (err, results) => {
-      if (results) {
-        resolve(results)
-      }
-      else reject(err)
-    })
-  })
-
-  if (isClockedin.length !== 0) {
-    return res.status(500).json({ status: 500, error: 'employee has already clock in, only clock out is allowed', employeeDetails: isClockedin });
-  }
-
-
-  const values = [
-    req.body.employeeId,
-    todayDate,
-    currentTime,
-  ];
-  const query = `INSERT INTO attendence
-  (
-    employeeId,
-    Date,
-    clockIn
-  ) VALUES
-  (
-    ?,?,?
-  )`
-
-  db.query(query, values, (err, results) => {
-    if (err) {
-      res.status(500).json({ error: 'clock in error' });
-      return;
-    }
-    res.status(200).json({ status: 200, message: 'employee clocked in', employeeDetails: results, employeeId: req.body.employeeId });
-  })
-})
-
-//11. -------->clock-out API
-
-app.post('/clockout', checkRequiredFields(["employeeId"]), (req, res) => {
-  const today = new Date();
-  const { currentTime } = getDate(today)
-  db.query(`SELECT * from attendence WHERE employeeId=${req.body.employeeId} AND 	clockOut="00:00:00"`, (err, results) => {
-    if (err) {
-      res.status(400).json({ message: 'error in doing clockout', err });
-      return;
-    }
-    else {
-
-      if (results.length == 0) {
-        res.status(400).json({ message: 'employee has not clocked in' });
-        return;
-      }
-
-      const query = `UPDATE attendence 
-                 SET clockOut = '${currentTime}' 
-                 WHERE employeeId = '${req.body.employeeId}'`;
-      db.query(query, (err, results) => {
-        if (err) {
-          res.status(500).json({ error: 'clock-out in error', err });
-          return;
-        }
-        res.status(200).json({ status: 200, message: 'employee clocked-out' });
-      })
-    }
-  })
-
-})
-app.post('/clockinstatus', checkRequiredFields(["employeeId"]), (req, res) => {
-  const today = new Date();
-  const { todayDate } = getDate(today)
-
-  db.query(`SELECT * from attendence WHERE employeeId=${req.body.employeeId} AND 	Date="${todayDate}"`, (err, results) => {
-    if (results.length == 0) {
-      res.status(400).json({ status: 400, message: 'employee has not clocked in' });
-      return;
-    }
-
-    res.status(200).json({ status: 200, message: 'employee has clocked in' });
-
-  })
-})
+const { clockOut, clockIn, clockinstatus } = require('./controllers/employeeControls/clocktimes.js')
+app.post('/clockin', clockIn)
+app.post('/clockout', checkRequiredFields(["employeeId"]), clockOut)
+app.post('/clockinstatus', checkRequiredFields(["employeeId"]), clockinstatus)
 
 
 
@@ -1921,75 +1836,37 @@ app.post('/updaterequest', checkRequiredFields([
   "type"
 ]), (req, res) => {
   //getting data first to get keyname and value for updation in destination folder
-  const getemployee_query = `SELECT  employeeId,keyname, value FROM requests WHERE requestId=${req.body.requestId};`
+  const getemployee_query = `SELECT  *  FROM requests WHERE requestId=${req.body.requestId};`
 
   db.query(getemployee_query, (err, result) => {
-    if (err && result.length == 0) {
+    if (err) {
       res.status(500).send({ message: "can not find request for given data", error: err });
       return;
     }
-    console.log(result)
+    result[0].Date = convtoIST(result[0].Date)
+
+    //if request is rejected then execute this
     if (req.body.update === "reject") {
-      if (req.body.type == "clocktime") {
-        const query = `UPDATE requests SET status = "${req.body.update}" WHERE requestId = ${req.body.requestId}`
+      const query = `UPDATE requests SET status = "${req.body.update}" WHERE requestId = ${req.body.requestId}`
 
-        Promise.all([
-          executeQuery(query)
-        ])
-          .then(results => {
-            // Combine the results into a single object
-            const combinedData = {
-              request_updation: results[0],
-              data_updation: results[1]
-            };
-
-            // Send the combined data as a response
-            res.json({ status: 200, message: 'request updated successfully', data: combinedData });
-          })
-          .catch(error => {
-            console.error('Error in updating request: ' + error);
-            res.status(500).json({ error: 'Internal server error', message: error });
-          });
-      }
-      else if (req.body.type == "update_employee") {
-        const query = `UPDATE requests SET status = "${req.body.update}" WHERE requestId = ${req.body.requestId}`
-
-        Promise.all([
-          executeQuery(query)
-        ])
-          .then(results => {
-            // Combine the results into a single object
-            const combinedData = {
-              request_updation: results[0],
-              data_updation: results[1]
-            };
-
-            // Send the combined data as a response
-            res.json({ status: 200, message: 'request updated successfully', data: combinedData });
-          })
-          .catch(error => {
-            console.error('Error in updating request: ' + error);
-            res.status(500).json({ error: 'Internal server error', message: error });
-          });
-      }
-
-      function executeQuery(query) {
-        return new Promise((resolve, reject) => {
-          db.query(query, (error, results) => {
-            if (error) {
-              reject(error);
-            } else {
-              resolve(results);
-            }
-          });
-        });
-      }
-
+      db.query(query, (err, result) => {
+        if (err) {
+          res.status(500).send({ message: "erro in inserting request", error: err });
+          return;
+        }
+        return res.status(200).send({ status: 200, message: `request ${req.body.update} successfully`, document: req.body });
+      });
     }
+
+    //if request is approved then execute this
     else {
       if (req.body.type == "clocktime") {
+        console.log(result[0])
         const query = `UPDATE requests SET status = "${req.body.update}" WHERE requestId = ${req.body.requestId}`
-        const sub_query = `UPDATE attendence SET ${result[0].keyname} = "${result[0].value}" WHERE 	employeeId = ${result[0].employeeId}`
+
+        const formattedDate = result[0].Date.toISOString().slice(0, 10);
+        const sub_query = `UPDATE attendence SET ${result[0].keyname} = "${result[0].value}" WHERE 	employeeId = ${result[0].employeeId} AND Date= "${formattedDate}"`;
+        console.log(sub_query)
 
         Promise.all([
           executeQuery(query),
@@ -2003,7 +1880,7 @@ app.post('/updaterequest', checkRequiredFields([
             };
 
             // Send the combined data as a response
-            res.json({ status: 200, message: 'request updated successfully', data: combinedData });
+            res.json({ status: 200, message: `request ${req.body.update} successfully`, data: combinedData });
           })
           .catch(error => {
             res.status(500).json({ error: 'Internal server error', message: error });
@@ -2025,13 +1902,14 @@ app.post('/updaterequest', checkRequiredFields([
             };
 
             // Send the combined data as a response
-            res.json({ status: 200, message: 'request updated successfully', data: combinedData });
+            res.json({ status: 200, message: `request ${req.body.update} successfully`, data: combinedData });
           })
           .catch(error => {
             res.status(500).json({ error: 'Internal server error', message: error });
           });
       }
 
+      //funcation to create Promise for the query
       function executeQuery(query) {
         return new Promise((resolve, reject) => {
           db.query(query, (error, results) => {
@@ -2367,14 +2245,6 @@ app.get('/getabsents', async (req, res) => {
   });
 })
 
-// const { createPolicy, getAllPolicies, updatePolicy, deletePolicy ,getAllPoliciesbyId} = require('./controllers/adminControls/policies.js');
-// app.post('/createpolicy', createPolicy)
-// app.get('/getallpolicies', getAllPolicies)
-// app.get('/getallpoliciesbyid/:id', getAllPoliciesbyId)
-// app.post('/updatepolicy', updatePolicy)
-// app.get('/deletepolicy/:id', deletePolicy)
-
-
 //workingHours APIS
 
 const { createworkingHours, getworkingHours, updateWorkingHours, deleteWorkingHours, getworkingHoursbyId } = require('./controllers/adminControls/workinghours.js');
@@ -2391,10 +2261,10 @@ app.get('/getsalarybysalaryid/:id', getSalarybysalaryId)
 app.get('/getallsalaries', getallSalaries)
 
 //notifications API
-const {createNotification,getNotificationbyemployeeId,seeNotificationbyId}= require('./controllers/commonControls/notifications.js')
+const { createNotification, getNotificationbyemployeeId, seeNotificationbyId } = require('./controllers/commonControls/notifications.js')
 app.post('/createNotification', announcements_docs_upload.none(), createNotification)
-app.get('/getnotificationbyemployeeid/:id',getNotificationbyemployeeId)
-app.get('/seenotificationbyid/:id',seeNotificationbyId)
+app.get('/getnotificationbyemployeeid/:id', getNotificationbyemployeeId)
+app.get('/seenotificationbyid/:id', seeNotificationbyId)
 
 //listening app
 app.listen(port, () => {
