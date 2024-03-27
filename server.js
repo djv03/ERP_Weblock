@@ -28,7 +28,7 @@ app.get('/', (req, res) => {
 
 const checkRequiredFields = require('./utils/validator.js')
 const convtoIST = require('./utils/convtoIST.js')
-const getDate = require('./utils/getDate.js')
+const {getDate} = require('./utils/getDate.js')
 const queryPromise = require('./utils/queryPromise.js');
 //------------------------ your API goes here--------------------------
 
@@ -1488,10 +1488,15 @@ app.post('/approveleave', checkRequiredFields([
 // 9. get all leaves
 app.get('/getleaves', (req, res) => {
   //sql query to reteive all the documents of table
-  const query = "SELECT * FROM `leaves` WHERE status='approve' ";
+
+  const today = new Date();
+  const { todayDate } = getDate(today)
+  console.log(todayDate)
+
+  const query = `SELECT * FROM leaves WHERE  endDate>='${todayDate}' AND status='approve'`;
   db.query(query, (err, results) => {
     if (err) {
-      res.status(500).json({ error: 'can not retrieve leaves' });
+      res.status(500).json({ message: 'can not retrieve leaves',error:err });
       return;
     }
     results.forEach((row) => {
@@ -1554,7 +1559,7 @@ app.get('/getleavesoftoday', async (req, res) => {
   const { todayDate } = getDate(today)
 
   const todaysleaves = await new Promise((resolve, reject) => {
-    const query = `SELECT * FROM leaves WHERE startDate>='${todayDate}'`
+    const query = `SELECT * FROM leaves WHERE  '${todayDate}' BETWEEN startDate  AND endDate AND (status='approve')`
     db.query(query, (err, results) => {
       if (err) {
         reject(err);
